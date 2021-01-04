@@ -1,0 +1,32 @@
+name: qu
+
+channels:
+  - pytorch
+  - defaults
+
+dependencies:
+  - python=3.8
+  - numpy=1.19
+  - scikit-image=0.17
+  - scikit-learn=0.23
+  - scipy=1.5
+  - cudatoolkit=10.1
+  - cudnn=7.6
+  - tensorflow-gpu>=2.2
+  - pytorch::pytorch=1.7
+  - pytorch::ignite=0.4
+  - pytorch::torchvision=0.8
+  - pytorch::torchaudio=0.7
+  - pip=20.3
+  - natsort=7.1
+  - tifffile=2020.12.4
+  - tqdm=4.55
+  - pip:
+      - pyqt5==5.15.2
+      - monai-weekly[all]
+      - napari[all]
+      - opencv-python==4.4.*
+      - opencv-contrib_python==4.4.*
+      - albumentations==0.5
+      - conda-lock
+
