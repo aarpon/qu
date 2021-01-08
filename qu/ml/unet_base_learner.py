@@ -1,23 +1,29 @@
 import sys
+from abc import ABC
 from datetime import datetime
+from glob import glob
+
 import numpy as np
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Union
 import os
 
 import torch
-from monai.data import ArrayDataset, DataLoader
+from monai.data import ArrayDataset, DataLoader, Dataset
 from monai.inferers import sliding_window_inference
 from monai.losses import GeneralizedDiceLoss
 from monai.metrics import DiceMetric
 from monai.networks.nets import UNet
 from monai.utils import set_determinism
+from natsort import natsorted
 from tifffile import TiffWriter
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 
+from qu.ml.abstract_base_learner import AbstractBaseLearner
 
-class UNetBaseLearner:
+
+class UNetBaseLearner(AbstractBaseLearner):
     """Learner that used U-Net as worker."""
 
     def __init__(
@@ -26,8 +32,8 @@ class UNetBaseLearner:
             out_channels: int = 3,
             roi_size: Tuple[int, int] = (384, 384),
             num_epochs: int = 400,
-            batch_sizes: Tuple[int, int, int] = (8, 1, 1),
-            num_workers: Tuple[int, int, int] = (4, 4, 1),
+            batch_sizes: Tuple[int, int, int] = (8, 1, 1, 1),
+            num_workers: Tuple[int, int, int] = (4, 4, 1, 1),
             validation_interval: int = 2,
             sliding_window_batch_size: int = 4,
             class_names: Tuple[str, ...] = ("Background", "Object", "Border"),
@@ -50,11 +56,11 @@ class UNetBaseLearner:
         @param num_epochs: int, optional: default = 400
             Number of epochs for training.
 
-        @param batch_sizes: Tuple[int, int, int], optional: default = (8, 1, 1)
-            Batch sizes for training, validation and testing, respectively.
+        @param batch_sizes: Tuple[int, int, int], optional: default = (8, 1, 1, 1)
+            Batch sizes for training, validation, testing, and prediction, respectively.
 
-        @param num_workers: Tuple[int, int, int], optional: default = (8, 8, 8)
-            Number of workers for training, validation and testing, respectively.
+        @param num_workers: Tuple[int, int, int], optional: default = (4, 4, 1, 1)
+            Number of workers for training, validation, testing, and prediction, respectively.
 
         @param validation_interval: int, optional: default = 2
             Number of training steps before the next validation is performed.
@@ -96,9 +102,11 @@ class UNetBaseLearner:
         self._training_batch_size = batch_sizes[0]
         self._validation_batch_size = batch_sizes[1]
         self._test_batch_size = batch_sizes[2]
+        self._prediction_batch_size = batch_sizes[3]
         self._training_num_workers = num_workers[0]
         self._validation_num_workers = num_workers[1]
         self._test_num_workers = num_workers[2]
+        self._prediction_num_workers = num_workers[3]
         self._n_epochs = num_epochs
         self._validation_interval = validation_interval
         self._sliding_window_batch_size = sliding_window_batch_size
@@ -126,8 +134,10 @@ class UNetBaseLearner:
         self._validation_mask_transforms = None
         self._test_image_transforms = None
         self._test_mask_transforms = None
+        self._prediction_image_transforms = None
         self._validation_post_transforms = None
         self._test_post_transforms = None
+        self._prediction_post_transforms = None
 
         # Datasets and data loaders
         self._train_dataset = None
@@ -136,6 +146,8 @@ class UNetBaseLearner:
         self._validation_dataloader = None
         self._test_dataset = None
         self._test_dataloader = None
+        self._prediction_dataset = None
+        self._prediction_dataloader = None
 
         # Set model architecture, loss function, metric and optimizer
         self._model = None
@@ -181,7 +193,7 @@ class UNetBaseLearner:
         self._define_transforms()
 
         # Define the datasets and data loaders
-        self._define_data_loaders()
+        self._define_training_data_loaders()
 
         # Instantiate the model
         self._define_model()
@@ -214,9 +226,9 @@ class UNetBaseLearner:
         for epoch in range(self._n_epochs):
 
             # Inform
-            print(f"{40 * '-'}")
+            print(f"{80 * '-'}")
             print(f"Epoch {epoch + 1}/{self._n_epochs}")
-            print(f"{40 * '-'}")
+            print(f"{80 * '-'}")
 
             # Switch to training mode
             self._model.train()
@@ -260,9 +272,9 @@ class UNetBaseLearner:
             # Validation
             if (epoch + 1) % self._validation_interval == 0:
 
-                print(f"{40 * '-'}")
+                print(f"{80 * '-'}")
                 print(f"Validation")
-                print(f"{40 * '-'}")
+                print(f"{80 * '-'}")
 
                 # Switch to evaluation mode
                 self._model.eval()
@@ -349,14 +361,18 @@ class UNetBaseLearner:
         # Return success
         return True
 
-    def test_predict(self, prediction_output_path: str = '', best_model_path: str = '') -> bool:
-        """Run prediction.
+    def test_predict(
+            self,
+            target_folder: Union[Path, str] = '',
+            model_path: Union[Path, str] = ''
+    ) -> bool:
+        """Run prediction on predefined test data.
 
-        @param prediction_output_path: str, optional: default = ''
+        @param target_folder: Path|str, optional: default = ''
             Path to the folder where to store the predicted images. If not specified,
             if defaults to '{working_dir}/predictions'. See constructor.
 
-        @param best_model_path: str, optional: default = ''
+        @param model_path: Path|str, optional: default = ''
             Full path to the model to use. If omitted and a training was
             just run, the path to the model with the best metric is
             already stored and will be used.
@@ -367,9 +383,9 @@ class UNetBaseLearner:
         """
 
         # Inform
-        print(f"{40 * '-'}")
+        print(f"{80 * '-'}")
         print(f"Test prediction")
-        print(f"{40 * '-'}")
+        print(f"{80 * '-'}")
 
         # Get the device
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -379,14 +395,14 @@ class UNetBaseLearner:
             self._define_model()
 
         # If the path to the best model was not set, use current one (if set)
-        if best_model_path == '':
-            best_model_path = self.get_best_model_path()
+        if model_path == '':
+            model_path = self.get_best_model_path()
 
         # Try loading the model weights: they must be compatible
         # with the model in memory
         try:
             checkpoint = torch.load(
-                best_model_path,
+                model_path,
                 map_location=torch.device('cpu')
             )
             self._model.load_state_dict(checkpoint)
@@ -396,12 +412,12 @@ class UNetBaseLearner:
             self._message = "Error: there was a problem loading the model! Aborting."
             return False
 
-        # If the target folder does not exist, create it
-        if prediction_output_path == '':
-            prediction_output_path = Path(self._working_dir) / "predictions"
+        # If the target folder is not specified, set it to the standard predictions out
+        if target_folder == '':
+            target_folder = Path(self._working_dir) / "tests"
         else:
-            prediction_output_path = Path(prediction_output_path)
-        prediction_output_path.mkdir(parents=True, exist_ok=True)
+            target_folder = Path(target_folder)
+        target_folder.mkdir(parents=True, exist_ok=True)
 
         # Switch to evaluation mode
         self._model.eval()
@@ -413,7 +429,7 @@ class UNetBaseLearner:
             for test_data in self._test_dataloader:
 
                 # Get the next batch and move it to device
-                test_images, test_labels = test_data[0].to(self._device), test_data[1].to(self._device)
+                test_images, test_masks = test_data[0].to(self._device), test_data[1].to(self._device)
 
                 # Apply sliding inference over ROI size
                 test_outputs = sliding_window_inference(
@@ -433,7 +449,7 @@ class UNetBaseLearner:
 
                 # Save prediction as npy file
                 pred_file_name = os.path.join(
-                    str(prediction_output_path),
+                    str(target_folder),
                     basename + '.npy')
                 np.save(pred_file_name, pred)
 
@@ -442,13 +458,126 @@ class UNetBaseLearner:
 
                 # Save label image as tiff file
                 label_file_name = os.path.join(
-                    str(prediction_output_path),
+                    str(target_folder),
                     basename + '.tif')
                 with TiffWriter(label_file_name) as tif:
                     tif.save(label_img)
 
                 # Inform
-                print(f"Saved {str(prediction_output_path)}/({basename}.npy, {basename}.tif)")
+                print(f"Saved {str(target_folder)}/({basename}.npy, {basename}.tif)")
+
+                # Update the index
+                indx += 1
+
+        # Inform
+        print(f"Test prediction completed.")
+
+        # Return success
+        return True
+
+    def predict(self,
+                input_folder: Union[Path, str],
+                target_folder: Union[Path, str],
+                model_path: Union[Path, str]
+                ):
+        """Run prediction.
+
+        @param input_folder: Path|str
+            Path to the folder where to store the predicted images.
+
+        @param target_folder: Path|str
+            Path to the folder where to store the predicted images.
+
+        @param model_path: Path|str
+            Full path to the model to use.
+
+        @return True if the prediction was successful, False otherwise.
+        """
+        # Inform
+        print(f"{80 * '-'}")
+        print(f"Prediction")
+        print(f"{80 * '-'}")
+
+        # Get the device
+        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # If the model is not in memory, instantiate it first
+        if self._model is None:
+            self._define_model()
+
+        # Try loading the model weights: they must be compatible
+        # with the model in memory
+        try:
+            checkpoint = torch.load(
+                model_path,
+                map_location=torch.device('cpu')
+            )
+            self._model.load_state_dict(checkpoint)
+            print("Loaded best metric model")
+        except Exception as e:
+            print(type(e))
+            self._message = "Error: there was a problem loading the model! Aborting."
+            return False
+
+        # Make sure the target folder exists
+        if type(target_folder) == str and target_folder == '':
+            self._message = "Error: please specify a valid target folder! Aborting."
+            return False
+
+        target_folder = Path(target_folder)
+        target_folder.mkdir(parents=True, exist_ok=True)
+
+        # Get prediction dataloader
+        if not self._define_prediction_data_loaders(input_folder):
+            self._message = "Error: could not instantiate prediction dataloader? Aborting."
+            return False
+
+        # Switch to evaluation mode
+        self._model.eval()
+
+        indx = 0
+
+        # Make sure not to update the gradients
+        with torch.no_grad():
+            for prediction_data in self._prediction_dataloader:
+
+                # Get the next batch and move it to device
+                prediction_images = prediction_data.to(self._device)
+
+                # Apply sliding inference over ROI size
+                prediction_outputs = sliding_window_inference(
+                    prediction_images,
+                    self._roi_size,
+                    self._sliding_window_batch_size,
+                    self._model
+                )
+                prediction_outputs = self._prediction_post_transforms(prediction_outputs)
+
+                # Retrieve the image from the GPU (if needed)
+                pred = prediction_outputs.cpu().numpy().squeeze()
+
+                # Prepare the output file name
+                basename = os.path.splitext(os.path.basename(self._prediction_image_names[indx]))[0]
+                basename = "pred_" + basename
+
+                # Save prediction as npy file
+                pred_file_name = os.path.join(
+                    str(target_folder),
+                    basename + '.npy')
+                np.save(pred_file_name, pred)
+
+                # Convert to label image
+                label_img = self._prediction_to_label_tiff_image(pred)
+
+                # Save label image as tiff file
+                label_file_name = os.path.join(
+                    str(target_folder),
+                    basename + '.tif')
+                with TiffWriter(label_file_name) as tif:
+                    tif.save(label_img)
+
+                # Inform
+                print(f"Saved {str(target_folder)}/({basename}.npy, {basename}.tif)")
 
                 # Update the index
                 indx += 1
@@ -514,14 +643,25 @@ class UNetBaseLearner:
         raise NotImplementedError("Implement me!")
 
     def _define_transforms(self):
-        """Define and initialize data transforms.
+        """Define and initialize all data transforms.
+
+          * training set images transform
+          * training set masks transform
+          * validation set images transform
+          * validation set masks transform
+          * validation set images post-transform
+          * test set images transform
+          * test set masks transform
+          * test set images post-transform
+          * prediction set images transform
+          * prediction set images post-transform
 
         @return True if data transforms could be instantiated, False otherwise.
         """
         raise NotImplementedError("Implement me!")
 
-    def _define_data_loaders(self) -> bool:
-        """Initialize datasets and data loaders.
+    def _define_training_data_loaders(self) -> bool:
+        """Initialize training datasets and data loaders.
 
         @Note: in Windows, it is essential to set `persistent_workers=True` in the data loaders!
 
@@ -534,7 +674,8 @@ class UNetBaseLearner:
             pin_memory = False
         else:
             persistent_workers = False
-            pin_memory = torch.cuda.is_available()
+            #pin_memory = torch.cuda.is_available()
+            pin_memory = False
 
         if len(self._train_image_names) == 0 or \
                 len(self._train_mask_names) == 0 or \
@@ -593,6 +734,58 @@ class UNetBaseLearner:
         )
         self._test_dataloader = DataLoader(
             self._test_dataset,
+            batch_size=self._test_batch_size,
+            shuffle=False,
+            num_workers=self._test_num_workers,
+            persistent_workers=persistent_workers,
+            pin_memory=pin_memory
+        )
+
+        return True
+
+    def _define_prediction_data_loaders(
+            self,
+            prediction_folder_path: Union[Path, str]
+    ) -> bool:
+        """Initialize prediction datasets and data loaders.
+
+        @Note: in Windows, it is essential to set `persistent_workers=True` in the data loaders!
+
+        @return True if datasets and data loaders could be instantiated, False otherwise.
+        """
+
+        # Check that the path exists
+        prediction_folder_path = Path(prediction_folder_path)
+        if not prediction_folder_path.is_dir():
+            return False
+
+        # Scan for images
+        self._prediction_image_names = natsorted(
+            glob(str(Path(prediction_folder_path) / "*.tif"))
+        )
+
+        # Optimize arguments
+        if sys.platform == 'win32':
+            persistent_workers = True
+            pin_memory = False
+        else:
+            persistent_workers = False
+            pin_memory = torch.cuda.is_available()
+
+        if len(self._prediction_image_names) == 0:
+
+            self._prediction_dataset = None
+            self._prediction_dataloader = None
+
+            return False
+
+        # Prediction
+        self._prediction_dataset = Dataset(
+            self._prediction_image_names,
+            self._prediction_image_transforms
+        )
+        self._prediction_dataloader = DataLoader(
+            self._prediction_dataset,
             batch_size=self._test_batch_size,
             shuffle=False,
             num_workers=self._test_num_workers,

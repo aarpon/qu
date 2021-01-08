@@ -18,8 +18,8 @@ class UNetOneHotLearner(UNetBaseLearner):
             out_channels: int = 3,
             roi_size: Tuple[int, int] = (384, 384),
             num_epochs: int = 400,
-            batch_sizes: Tuple[int, int, int] = (8, 1, 1),
-            num_workers: Tuple[int, int, int] = (8, 8, 8),
+            batch_sizes: Tuple[int, int, int] = (8, 1, 1, 1),
+            num_workers: Tuple[int, int, int] = (8, 4, 8, 1),
             seed: int = 4294967295,
             working_dir: str = '.'
     ):
@@ -37,11 +37,11 @@ class UNetOneHotLearner(UNetBaseLearner):
         @param num_epochs: int, optional: default = 400
             Number of epochs for training.
 
-        @param batch_sizes: Tuple[int, int, int], optional: default = (8, 1, 1)
-            Batch sizes for training, validation and testing, respectively.
+        @param batch_sizes: Tuple[int, int, int], optional: default = (8, 1, 1, 1)
+            Batch sizes for training, validation, testing, and prediction, respectively.
 
-        @param num_workers: Tuple[int, int, int], optional: default = (8, 8, 8)
-            Number of workers for training, validation and testing, respectively.
+        @param num_workers: Tuple[int, int, int], optional: default = (4, 4, 1, 1)
+            Number of workers for training, validation, testing, and prediction, respectively.
 
         @param seed: int
             Set random seed for modules to enable or disable deterministic training.
@@ -64,7 +64,18 @@ class UNetOneHotLearner(UNetBaseLearner):
         )
 
     def _define_transforms(self):
-        """Define and initialize data transforms.
+        """Define and initialize all data transforms.
+
+          * training set images transform
+          * training set masks transform
+          * validation set images transform
+          * validation set masks transform
+          * validation set images post-transform
+          * test set images transform
+          * test set masks transform
+          * test set images post-transform
+          * prediction set images transform
+          * prediction set images post-transform
 
         @return True if data transforms could be instantiated, False otherwise.
         """
@@ -125,6 +136,16 @@ class UNetOneHotLearner(UNetBaseLearner):
             ]
         )
 
+        # Define transforms for prediction
+        self._prediction_image_transforms = Compose(
+            [
+                LoadImage(image_only=True),
+                ScaleIntensity(),
+                AddChannel(),
+                ToTensor()
+            ]
+        )
+
         # Post transforms
         self._validation_post_transforms = Compose(
             [
@@ -134,6 +155,13 @@ class UNetOneHotLearner(UNetBaseLearner):
         )
 
         self._test_post_transforms = Compose(
+            [
+                Activations(softmax=True),
+                AsDiscrete(threshold_values=True)
+            ]
+        )
+
+        self._prediction_post_transforms = Compose(
             [
                 Activations(softmax=True),
                 AsDiscrete(threshold_values=True)

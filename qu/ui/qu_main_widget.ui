@@ -36,7 +36,7 @@
    <item>
     <widget class="QPushButton" name="pBSelectDataRootFolder">
      <property name="text">
-      <string>Pick data root folder...</string>
+      <string>Select data root folder</string>
      </property>
     </widget>
    </item>
@@ -196,52 +196,49 @@
     </widget>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="hlPrediction">
-     <item>
+    <layout class="QGridLayout" name="gLPrediction">
+     <item row="0" column="0">
       <widget class="QPushButton" name="pbSelectPredictionData">
        <property name="text">
-        <string>Select data...</string>
+        <string>Select data folder</string>
        </property>
       </widget>
      </item>
-     <item>
+     <item row="1" column="0">
+      <widget class="QPushButton" name="pbSelectPredictionTarget">
+       <property name="text">
+        <string>Select target folder</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
       <widget class="QPushButton" name="pbApplyPrediction">
        <property name="text">
         <string>Predict</string>
        </property>
       </widget>
      </item>
+     <item row="2" column="0">
+      <widget class="QPushButton" name="pbSelectPredictionModel">
+       <property name="text">
+        <string>Select model</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </item>
    <item>
-    <widget class="QTextEdit" name="teLogConsole">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
      </property>
-     <property name="maximumSize">
+     <property name="sizeHint" stdset="0">
       <size>
-       <width>16777215</width>
-       <height>16777215</height>
+       <width>20</width>
+       <height>40</height>
       </size>
      </property>
-     <property name="baseSize">
-      <size>
-       <width>0</width>
-       <height>0</height>
-      </size>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>7</pointsize>
-      </font>
-     </property>
-     <property name="readOnly">
-      <bool>true</bool>
-     </property>
-    </widget>
+    </spacer>
    </item>
    <item>
     <widget class="QPushButton" name="pbFreeMemory">
@@ -263,7 +260,6 @@
   <tabstop>pBSelectDataRootFolder</tabstop>
   <tabstop>hsImageSelector</tabstop>
   <tabstop>hsTrainingValidationSplit</tabstop>
-  <tabstop>teLogConsole</tabstop>
  </tabstops>
  <resources/>
  <connections/>

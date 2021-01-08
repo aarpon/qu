@@ -11,10 +11,11 @@ from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataModel
 from qu.ml import UNetOneHotLearner, UNetLabelsLearner
+from qu.ui.qu_logger_widget import QuLoggerWidget
 from qu.ui.threads import LearnerManager
 
 
-class QuWidget(QtWidgets.QWidget):
+class QuMainWidget(QtWidgets.QWidget):
 
     def __init__(self, viewer, *args, **kwargs):
         """Constructor."""
@@ -28,23 +29,44 @@ class QuWidget(QtWidgets.QWidget):
         # Set up UI
         uic.loadUi(_ui_folder_path / "qu_main_widget.ui", self)
 
+        # Keep a reference to the stream objects
+        self._original_out_stream = sys.stdout
+        self._original_err_stream = sys.stderr
+        self._out_stream = EmittingOutputStream()
+        self._err_stream = EmittingErrorStream()
+
+        # Setup standard out and err redirection
+        sys.stdout = self._out_stream
+        sys.stdout.stream_signal.connect(self._on_print_output_to_console)
+        sys.stderr = self._err_stream
+        sys.stderr.stream_signal.connect(self._on_print_error_to_console)
+
         # Set up the menu
         self._add_qu_menu()
 
         # Set the connections
         self._set_connections()
 
-        # Setup standard out and err redirection
-        sys.stdout = EmittingOutputStream()
-        sys.stdout.stream_signal.connect(self._on_print_output_to_console)
-        sys.stderr = EmittingErrorStream()
-        sys.stderr.stream_signal.connect(self._on_print_error_to_console)
-
         # Initialize data model
         self._data_model = DataModel()
 
+        # Create the logger
+        self._logger = QuLoggerWidget(viewer)
+
+        # Dock it
+        viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
+
         # Test redirection to output
         print(f"Welcome to Qu {__version__}.")
+
+    def __del__(self):
+
+        # Restore the streams
+        sys.stdout = self._original_out_stream
+        sys.stderr = self._original_err_stream
+
+        # Call the parent destructor
+        super().__del__()
 
     def _add_qu_menu(self):
         """Add the Qu menu to the main window."""
@@ -62,6 +84,7 @@ class QuWidget(QtWidgets.QWidget):
     def _set_connections(self):
         """Connect signals and slots."""
 
+        # Set up connections for UI elements
         self.pBSelectDataRootFolder.clicked.connect(self._on_select_data_root_folder)
         self.hsImageSelector.valueChanged.connect(self._on_selector_value_changed)
         self.hsTrainingValidationSplit.valueChanged.connect(self._on_train_val_split_selector_value_changed)
@@ -193,6 +216,11 @@ class QuWidget(QtWidgets.QWidget):
         # Display current data
         self.display()
 
+    @pyqtSlot(name='_on_prediction')
+    def _on_prediction(self):
+        """Run prediction."""
+
+
     @pyqtSlot(name='_on_select_data_for_prediction')
     def _on_select_data_for_prediction(self):
         """Select data for prediction."""
@@ -204,8 +232,8 @@ class QuWidget(QtWidgets.QWidget):
         """Redirect standard output to console."""
 
         # Append the text
-        self.teLogConsole.moveCursor(QtGui.QTextCursor.End)
-        self.teLogConsole.insertPlainText(text)
+        self._logger.moveCursor(QtGui.QTextCursor.End)
+        self._logger.insertPlainText(text)
 
     @pyqtSlot(str, name='_on_print_error_to_console')
     def _on_print_error_to_console(self, text: str) -> None:
@@ -215,14 +243,14 @@ class QuWidget(QtWidgets.QWidget):
         current_color = self.teLogConsole.textColor()
 
         # Set the color to red
-        self.teLogConsole.setTextColor(QtGui.QColor(255, 0, 0))
+        self._logger.setTextColor(QtGui.QColor(255, 0, 0))
 
         # Append the text
-        self.teLogConsole.moveCursor(QtGui.QTextCursor.End)
-        self.teLogConsole.insertPlainText(text)
+        self._logger.moveCursor(QtGui.QTextCursor.End)
+        self._logger.insertPlainText(text)
 
         # Restore the color
-        self.teLogConsole.setTextColor(current_color)
+        self._logger.setTextColor(current_color)
 
     @pyqtSlot(int, name="_on_selector_value_changed")
     def _on_selector_value_changed(self, value):
@@ -378,10 +406,11 @@ class QuWidget(QtWidgets.QWidget):
             t = round(torch.cuda.get_device_properties(0).total_memory / gb, 2)
             c = round(torch.cuda.memory_reserved(0) / gb, 2)
             a = round(torch.cuda.memory_allocated(0) / gb, 2)
-            print(f"[BEFORE] Memory allocated = {a} GB, reserved = {c}, total = {t}")
             torch.cuda.empty_cache()
-            c = round(torch.cuda.memory_reserved(0) / gb, 2)
-            a = round(torch.cuda.memory_allocated(0) / gb, 2)
-            print(f"[AFTER ] Memory allocated = {a} GB, reserved = {c}, total = {t}")
+            c2 = round(torch.cuda.memory_reserved(0) / gb, 2)
+            a2 = round(torch.cuda.memory_allocated(0) / gb, 2)
+            print(f"Total memory = {t} GB, "
+                  f"allocated = {a2} GB (before = {a} GB), "
+                  f"reserved = {c2} GB (before = {c} GB)")
         else:
             print("GPU not available.")

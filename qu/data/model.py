@@ -54,7 +54,7 @@ class DataModel:
         self._root_data_path: str = ''
         self._rel_images_path: str = ''
         self._rel_masks_path: str = ''
-        self._rel_predictions_path: str = ''
+        self._rel_tests_path: str = ''
 
         # File names
         self._image_names: list = []
@@ -140,13 +140,13 @@ class DataModel:
             self._root_data_path = Path(value).resolve()
             self._rel_images_path = self._root_data_path / "images"
             self._rel_masks_path = self._root_data_path / "masks"
-            self._rel_predictions_path = self._root_data_path / "predictions"
+            self._rel_tests_path = self._root_data_path / "tests"
 
             # If the directories do not exist, create them
             Path(self._root_data_path).mkdir(parents=True, exist_ok=True)
             Path(self._rel_images_path).mkdir(parents=True, exist_ok=True)
             Path(self._rel_masks_path).mkdir(parents=True, exist_ok=True)
-            Path(self._rel_predictions_path).mkdir(parents=True, exist_ok=True)
+            Path(self._rel_tests_path).mkdir(parents=True, exist_ok=True)
 
     @property
     def training_fraction(self):
@@ -186,7 +186,7 @@ class DataModel:
         self._root_data_path = ''
         self._rel_images_path = ''
         self._rel_masks_path = ''
-        self._rel_predictions_path = ''
+        self._rel_tests_path = ''
 
         # File names
         self._image_names = []
