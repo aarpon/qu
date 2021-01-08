@@ -406,7 +406,7 @@ class UNetBaseLearner(AbstractBaseLearner):
                 map_location=torch.device('cpu')
             )
             self._model.load_state_dict(checkpoint)
-            print("Loaded best metric model")
+            print(f"Loaded best metric model {model_path}.")
         except Exception as e:
             print(type(e))
             self._message = "Error: there was a problem loading the model! Aborting."
@@ -513,7 +513,7 @@ class UNetBaseLearner(AbstractBaseLearner):
                 map_location=torch.device('cpu')
             )
             self._model.load_state_dict(checkpoint)
-            print("Loaded best metric model")
+            print(f"Loaded best metric model {model_path}.")
         except Exception as e:
             print(type(e))
             self._message = "Error: there was a problem loading the model! Aborting."

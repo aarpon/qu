@@ -68,9 +68,6 @@ class QuMainWidget(QtWidgets.QWidget):
         sys.stdout = self._original_out_stream
         sys.stderr = self._original_err_stream
 
-        # Call the parent destructor
-        super().__del__()
-
     def _add_qu_menu(self):
         """Add the Qu menu to the main window."""
 
