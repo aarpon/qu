@@ -55,6 +55,8 @@ class DataModel:
         self._rel_images_path: str = ''
         self._rel_masks_path: str = ''
         self._rel_tests_path: str = ''
+        self._pred_input_path: str = ''
+        self._pred_target_path: str = ''
 
         # File names
         self._image_names: list = []
@@ -75,6 +77,9 @@ class DataModel:
         # Splits (values between 0.00 and 1.00)
         self._training_fraction: float = 0.75
         self._validation_fraction: float = 0.80
+
+        # Model path
+        self._model_path = ''
 
     @property
     def index(self):
@@ -169,6 +174,33 @@ class DataModel:
         if value < 0.0 or value > 1.0:
             raise ValueError("The value of 'validation_fraction' must be 0 <= value <= 1.")
         self._validation_fraction = value
+
+    @property
+    def prediction_input_path(self):
+        """Prediction input path."""
+        return self._pred_input_path
+
+    @prediction_input_path.setter
+    def prediction_input_path(self, value: str):
+        self._pred_input_path = Path(value).resolve()
+
+    @property
+    def prediction_target_path(self):
+        """Prediction target path."""
+        return self._pred_target_path
+
+    @prediction_target_path.setter
+    def prediction_target_path(self, value: str):
+        self._pred_target_path = Path(value).resolve()
+
+    @property
+    def model_path(self):
+        """Model path."""
+        return self._model_path
+
+    @model_path.setter
+    def model_path(self, value: str):
+        self._model_path = Path(value).resolve()
 
     def reset(self):
         """Resets all information about loaded data."""

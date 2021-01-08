@@ -198,14 +198,14 @@
    <item>
     <layout class="QGridLayout" name="gLPrediction">
      <item row="0" column="0">
-      <widget class="QPushButton" name="pbSelectPredictionData">
+      <widget class="QPushButton" name="pbSelectPredictionDataFolder">
        <property name="text">
         <string>Select data folder</string>
        </property>
       </widget>
      </item>
      <item row="1" column="0">
-      <widget class="QPushButton" name="pbSelectPredictionTarget">
+      <widget class="QPushButton" name="pbSelectPredictionTargetFolder">
        <property name="text">
         <string>Select target folder</string>
        </property>
@@ -219,7 +219,7 @@
       </widget>
      </item>
      <item row="2" column="0">
-      <widget class="QPushButton" name="pbSelectPredictionModel">
+      <widget class="QPushButton" name="pbSelectPredictionModelFile">
        <property name="text">
         <string>Select model</string>
        </property>

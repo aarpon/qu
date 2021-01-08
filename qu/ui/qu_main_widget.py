@@ -12,7 +12,7 @@ from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataModel
 from qu.ml import UNetOneHotLearner, UNetLabelsLearner
 from qu.ui.qu_logger_widget import QuLoggerWidget
-from qu.ui.threads import LearnerManager
+from qu.ui.threads import LearnerManager, PredictorManager
 
 
 class QuMainWidget(QtWidgets.QWidget):
@@ -41,6 +41,9 @@ class QuMainWidget(QtWidgets.QWidget):
         sys.stderr = self._err_stream
         sys.stderr.stream_signal.connect(self._on_print_error_to_console)
 
+        # Create the logger
+        self._logger = QuLoggerWidget(viewer)
+
         # Set up the menu
         self._add_qu_menu()
 
@@ -50,8 +53,8 @@ class QuMainWidget(QtWidgets.QWidget):
         # Initialize data model
         self._data_model = DataModel()
 
-        # Create the logger
-        self._logger = QuLoggerWidget(viewer)
+        # Keep a reference to the learner
+        self._learner = None
 
         # Dock it
         viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
@@ -85,13 +88,24 @@ class QuMainWidget(QtWidgets.QWidget):
         """Connect signals and slots."""
 
         # Set up connections for UI elements
+
+        # Data root and navigation
         self.pBSelectDataRootFolder.clicked.connect(self._on_select_data_root_folder)
         self.hsImageSelector.valueChanged.connect(self._on_selector_value_changed)
+
+        # Training
         self.hsTrainingValidationSplit.valueChanged.connect(self._on_train_val_split_selector_value_changed)
         self.hsValidationTestingSplit.valueChanged.connect(self._on_val_test_split_selector_value_changed)
         self.pbTrain.clicked.connect(self._on_run_training)
+
+        # Prediction
+        self.pbSelectPredictionDataFolder.clicked.connect(self._on_select_input_for_prediction)
+        self.pbSelectPredictionTargetFolder.clicked.connect(self._on_select_target_for_prediction)
+        self.pbSelectPredictionModelFile.clicked.connect(self._on_select_model_for_prediction)
+        self.pbApplyPrediction.clicked.connect(self._on_run_prediction)
+
+        # Other
         self.pbFreeMemory.clicked.connect(self._on_free_memory_and_report)
-        self.pbSelectPredictionData.clicked.connect(self._on_select_data_for_prediction)
 
     def _update_data_selector(self) -> None:
         """Update data selector (slider)."""
@@ -216,16 +230,92 @@ class QuMainWidget(QtWidgets.QWidget):
         # Display current data
         self.display()
 
-    @pyqtSlot(name='_on_prediction')
-    def _on_prediction(self):
+    @pyqtSlot(name='_on_run_prediction')
+    def _on_run_prediction(self):
         """Run prediction."""
 
+        # Instantiate the manager
+        predictorManager = PredictorManager(
+            self._learner,
+            self._data_model.prediction_input_path,
+            self._data_model.prediction_target_path,
+            self._data_model.model_path
+        )
 
-    @pyqtSlot(name='_on_select_data_for_prediction')
-    def _on_select_data_for_prediction(self):
-        """Select data for prediction."""
+        # Run the training in a separate Qt thread
+        predictorManager.signals.started.connect(self._on_prediction_start)
+        predictorManager.signals.errored.connect(self._on_prediction_error)
+        predictorManager.signals.finished.connect(self._on_prediction_completed)
+        predictorManager.signals.returned.connect(self._on_prediction_returned)
+        QThreadPool.globalInstance().start(predictorManager)
 
-        print("Implement me!")
+    @pyqtSlot(name='_on_select_input_for_prediction')
+    def _on_select_input_for_prediction(self):
+        """Select input folder for prediction."""
+
+        # Ask the user to pick a folder
+        input_dir = QFileDialog.getExistingDirectory(
+            None,
+            "Select Prediction Input Directory..."
+        )
+        if input_dir == '':
+            # The user cancelled the selection
+            return
+
+        # Set the path in the DataModel
+        self._data_model.prediction_input_path = input_dir
+
+        # Retrieve the (parsed) input prediction path
+        prediction_input_path = self._data_model.prediction_input_path
+
+        # Update the button
+        self.pbSelectPredictionDataFolder.setText(str(prediction_input_path))
+
+    @pyqtSlot(name="_on_select_model_for_prediction")
+    def _on_select_model_for_prediction(self):
+        """Select model for prediction."""
+
+        # Ask the user to pick a model file
+        model_file = QFileDialog.getOpenFileName(
+            None,
+            "Pick a *.pth model file",
+            filter="*.pth"
+        )
+
+        if model_file[0] == '':
+            # The user cancelled the selection
+            return
+
+        # Set the path in the DataModel
+        self._data_model.model_path = model_file[0]
+
+        # Retrieve the (parsed) model file path
+        model_path = self._data_model.model_path
+
+        # Update the button
+        self.pbSelectPredictionModelFile.setText(str(model_path))
+
+    @pyqtSlot(name='_on_select_target_for_prediction')
+    def _on_select_target_for_prediction(self):
+        """Select target folder for prediction."""
+
+        # Ask the user to pick a folder
+        target_dir = QFileDialog.getExistingDirectory(
+            None,
+            "Select Prediction Target Directory..."
+        )
+        if target_dir == '':
+            # The user cancelled the selection
+            return
+
+        # Set the path in the DataModel
+        self._data_model.prediction_target_path = target_dir
+
+        # Retrieve the (parsed) target prediction path
+        prediction_target_path = self._data_model.prediction_target_path
+
+        # Update the button
+        self.pbSelectPredictionTargetFolder.setText(str(prediction_target_path))
 
     @pyqtSlot(str, name='_on_print_output_to_console')
     def _on_print_output_to_console(self, text: str) -> None:
@@ -240,7 +330,7 @@ class QuMainWidget(QtWidgets.QWidget):
         """Redirect standard error to console."""
 
         # Get current color
-        current_color = self.teLogConsole.textColor()
+        current_color = self._logger.textColor()
 
         # Set the color to red
         self._logger.setTextColor(QtGui.QColor(255, 0, 0))
@@ -315,26 +405,26 @@ class QuMainWidget(QtWidgets.QWidget):
         if self._data_model.mask_type == MaskType.NUMPY_ONE_HOT:
 
             # @TODO: Store it and check if it already exists
-            learner = UNetOneHotLearner(
+            self._learner = UNetOneHotLearner(
                 in_channels=1,
                 out_channels=self._data_model.num_classes,
                 roi_size=(384, 384),
                 num_epochs=4,
-                batch_sizes=(8, 1, 1),
-                num_workers=(1, 1, 1),
+                batch_sizes=(8, 1, 1, 1),
+                num_workers=(1, 1, 1, 1),
                 working_dir=self._data_model.root_data_path
             )
 
         else:
 
             # @TODO: Store it and check if it already exists
-            learner = UNetLabelsLearner(
+            self._learner = UNetLabelsLearner(
                 in_channels=1,
                 out_channels=self._data_model.num_classes,
                 roi_size=(384, 384),
                 num_epochs=4,
-                batch_sizes=(8, 1, 1),
-                num_workers=(1, 1, 1),
+                batch_sizes=(8, 1, 1, 1),
+                num_workers=(1, 1, 1, 1),
                 working_dir=self._data_model.root_data_path
             )
 
@@ -351,7 +441,7 @@ class QuMainWidget(QtWidgets.QWidget):
             return
 
         # Pass the training data to the learner
-        learner.set_training_data(
+        self._learner.set_training_data(
             train_image_names,
             train_mask_names,
             val_image_names,
@@ -361,7 +451,7 @@ class QuMainWidget(QtWidgets.QWidget):
         )
 
         # Instantiate the manager
-        learnerManager = LearnerManager(learner)
+        learnerManager = LearnerManager(self._learner)
 
         # Run the training in a separate Qt thread
         learnerManager.signals.started.connect(self._on_training_start)
@@ -383,20 +473,59 @@ class QuMainWidget(QtWidgets.QWidget):
     @pyqtSlot(name="_on_training_completed")
     def _on_training_completed(self):
         """Called when training is complete."""
-        print("Training completed.")
+        print("All training threads returned.")
 
     @pyqtSlot(object, name="_on_training_returned")
     def _on_training_returned(self, value):
         """Called when training returned."""
         if bool(value):
+            # Store the best model path in the data model
+            self._data_model.model_path = self._learner.get_best_model_path()
+
+            # Show the path to the best model on the select model button
+            self.pbSelectPredictionModelFile.setText(self._learner.get_best_model_path())
+
+            # Inform
             print(f"Training was successful.")
+
         else:
+            # Inform
             print(f"Training was not successful.")
 
     @pyqtSlot(object, name="_on_training_error")
     def _on_training_error(self, err):
         """Called if training failed."""
         print(f"Training error: {str(err)}")
+
+    @pyqtSlot(name="_on_qu_about_action")
+    def _on_qu_about_action(self):
+        """Qu about action."""
+        print("Qu version 0.0.1")
+
+    @pyqtSlot(name="_on_prediction_start")
+    def _on_prediction_start(self):
+        """Called when prediction is started."""
+        print("Prediction started.")
+
+    @pyqtSlot(name="_on_prediction_completed")
+    def _on_prediction_completed(self):
+        """Called when prediction is complete."""
+        print("All prediction threads returned.")
+
+    @pyqtSlot(object, name="_on_prediction_returned")
+    def _on_prediction_returned(self, value):
+        """Called when prediction returned."""
+        if bool(value):
+            # Inform
+            print(f"Prediction was successful.")
+        else:
+            # Inform
+            print(f"Prediction was not successful.")
+
+    @pyqtSlot(object, name="_on_prediction_error")
+    def _on_prediction_error(self, err):
+        """Called if prediction failed."""
+        print(f"Prediction error: {str(err)}")
 
     @pyqtSlot(name="_on_free_memory_and_report")
     def _on_free_memory_and_report(self):
