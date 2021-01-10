@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 from PyQt5 import QtWidgets, uic, QtGui
 from PyQt5.QtCore import pyqtSlot, QThreadPool
@@ -483,8 +485,10 @@ class QuMainWidget(QtWidgets.QWidget):
             # Store the best model path in the data model
             self._data_model.model_path = self._learner.get_best_model_path()
 
-            # Show the path to the best model on the select model button
-            self.pbSelectPredictionModelFile.setText(self._learner.get_best_model_path())
+            # Show the name of the best model as text on the "Select model" button and
+            # the full path as its tooltip
+            self.pbSelectPredictionModelFile.setText(Path(self._data_model.model_path).name)
+            self.pbSelectPredictionModelFile.setToolTip(str(self._data_model.model_path))
 
             # Inform
             print(f"Training was successful.", file=self._out_stream)
