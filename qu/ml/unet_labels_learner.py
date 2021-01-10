@@ -1,3 +1,6 @@
+import sys
+from io import TextIOWrapper
+
 import numpy as np
 from typing import Tuple
 
@@ -19,10 +22,12 @@ class UNetLabelsLearner(UNetBaseLearner):
             out_channels: int = 3,
             roi_size: Tuple[int, int] = (384, 384),
             num_epochs: int = 400,
-            batch_sizes: Tuple[int, int, int] = (8, 1, 1, 1),
-            num_workers: Tuple[int, int, int] = (8, 4, 8, 1),
+            batch_sizes: Tuple[int, int, int, int] = (8, 1, 1, 1),
+            num_workers: Tuple[int, int, int, int] = (8, 4, 8, 1),
             seed: int = 4294967295,
-            working_dir: str = '.'
+            working_dir: str = '.',
+            stdout: TextIOWrapper = sys.stdout,
+            stderr: TextIOWrapper = sys.stderr
     ):
         """Constructor.
 
@@ -61,7 +66,9 @@ class UNetLabelsLearner(UNetBaseLearner):
             batch_sizes=batch_sizes,
             num_workers=num_workers,
             seed=seed,
-            working_dir=working_dir
+            working_dir=working_dir,
+            stdout=stdout,
+            stderr=stderr
         )
 
     def _define_transforms(self):

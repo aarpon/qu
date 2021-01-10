@@ -29,12 +29,15 @@ class EmittingOutputStream(QObject):
 
     def close(self):
         """Close the stream."""
-        print("CLOSE WAS CALLED!")
         self.flush()
 
     def __del__(self):
         """Destructor."""
         sys.stdout = sys.__stdout__
+
+    def isatty(self):
+        """Override isatty() method."""
+        return True
 
 
 class EmittingErrorStream(QObject):
@@ -64,9 +67,12 @@ class EmittingErrorStream(QObject):
 
     def close(self):
         """Close the stream."""
-        print("CLOSE WAS CALLED!")
         self.flush()
 
     def __del__(self):
         """Destructor."""
         sys.stderr = sys.__stderr__
+
+    def isatty(self):
+        """Override isatty() method."""
+        return True

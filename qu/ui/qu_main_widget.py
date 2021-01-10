@@ -60,7 +60,7 @@ class QuMainWidget(QtWidgets.QWidget):
         viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
 
         # Test redirection to output
-        print(f"Welcome to Qu {__version__}.")
+        print(f"Welcome to Qu {__version__}.", file=self._out_stream)
 
     def __del__(self):
 
@@ -409,7 +409,9 @@ class QuMainWidget(QtWidgets.QWidget):
                 num_epochs=4,
                 batch_sizes=(8, 1, 1, 1),
                 num_workers=(1, 1, 1, 1),
-                working_dir=self._data_model.root_data_path
+                working_dir=self._data_model.root_data_path,
+                stdout=self._out_stream,
+                stderr=self._err_stream
             )
 
         else:
@@ -422,7 +424,9 @@ class QuMainWidget(QtWidgets.QWidget):
                 num_epochs=4,
                 batch_sizes=(8, 1, 1, 1),
                 num_workers=(1, 1, 1, 1),
-                working_dir=self._data_model.root_data_path
+                working_dir=self._data_model.root_data_path,
+                stdout=self._out_stream,
+                stderr=self._err_stream
             )
 
         # Get the data
@@ -431,10 +435,10 @@ class QuMainWidget(QtWidgets.QWidget):
                 val_image_names, val_mask_names, \
                 test_image_names, test_mask_names = self._data_model.training_split()
         except ValueError as e:
-            print(f"Error: {str(e)}. Aborting...", file=sys.stderr)
+            print(f"Error: {str(e)}. Aborting...", file=self._err_stream)
             return
         except Exception as x:
-            print(f"{str(x)}", file=sys.stderr)
+            print(f"{str(x)}", file=self._err_stream)
             return
 
         # Pass the training data to the learner
@@ -460,17 +464,17 @@ class QuMainWidget(QtWidgets.QWidget):
     @pyqtSlot(name="_on_qu_about_action")
     def _on_qu_about_action(self):
         """Qu about action."""
-        print("Qu version 0.0.1")
+        print("Qu version 0.0.1", file=self._out_stream)
 
     @pyqtSlot(name="_on_training_start")
     def _on_training_start(self):
         """Called when training is started."""
-        print("Training started.")
+        print("Training started.", file=self._out_stream)
 
     @pyqtSlot(name="_on_training_completed")
     def _on_training_completed(self):
         """Called when training is complete."""
-        print("All training threads returned.")
+        print("All training threads returned.", file=self._out_stream)
 
     @pyqtSlot(object, name="_on_training_returned")
     def _on_training_returned(self, value):
@@ -483,46 +487,46 @@ class QuMainWidget(QtWidgets.QWidget):
             self.pbSelectPredictionModelFile.setText(self._learner.get_best_model_path())
 
             # Inform
-            print(f"Training was successful.")
+            print(f"Training was successful.", file=self._out_stream)
 
         else:
             # Inform
-            print(f"Training was not successful.")
+            print(f"Training was not successful.", file=self._out_stream)
 
     @pyqtSlot(object, name="_on_training_error")
     def _on_training_error(self, err):
         """Called if training failed."""
-        print(f"Training error: {str(err)}")
+        print(f"Training error: {str(err)}", file=self._out_stream)
 
     @pyqtSlot(name="_on_qu_about_action")
     def _on_qu_about_action(self):
         """Qu about action."""
-        print("Qu version 0.0.1")
+        print("Qu version 0.0.1", file=self._out_stream)
 
     @pyqtSlot(name="_on_prediction_start")
     def _on_prediction_start(self):
         """Called when prediction is started."""
-        print("Prediction started.")
+        print("Prediction started.", file=self._out_stream)
 
     @pyqtSlot(name="_on_prediction_completed")
     def _on_prediction_completed(self):
         """Called when prediction is complete."""
-        print("All prediction threads returned.")
+        print("All prediction threads returned.", file=self._out_stream)
 
     @pyqtSlot(object, name="_on_prediction_returned")
     def _on_prediction_returned(self, value):
         """Called when prediction returned."""
         if bool(value):
             # Inform
-            print(f"Prediction was successful.")
+            print(f"Prediction was successful.", file=self._out_stream)
         else:
             # Inform
-            print(f"Prediction was not successful.")
+            print(f"Prediction was not successful.", file=self._out_stream)
 
     @pyqtSlot(object, name="_on_prediction_error")
     def _on_prediction_error(self, err):
         """Called if prediction failed."""
-        print(f"Prediction error: {str(err)}")
+        print(f"Prediction error: {str(err)}", file=self._err_stream)
 
     @pyqtSlot(name="_on_free_memory_and_report")
     def _on_free_memory_and_report(self):
@@ -537,6 +541,6 @@ class QuMainWidget(QtWidgets.QWidget):
             a2 = round(torch.cuda.memory_allocated(0) / gb, 2)
             print(f"Total memory = {t} GB, "
                   f"allocated = {a2} GB (before = {a} GB), "
-                  f"reserved = {c2} GB (before = {c} GB)")
+                  f"reserved = {c2} GB (before = {c} GB)", file=self._out_stream)
         else:
-            print("GPU not available.")
+            print("GPU not available.", file=self._out_stream)

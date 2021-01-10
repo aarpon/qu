@@ -2,6 +2,7 @@ import sys
 from abc import ABC
 from datetime import datetime
 from glob import glob
+from io import TextIOWrapper
 
 import numpy as np
 from pathlib import Path
@@ -32,15 +33,17 @@ class UNetBaseLearner(AbstractBaseLearner):
             out_channels: int = 3,
             roi_size: Tuple[int, int] = (384, 384),
             num_epochs: int = 400,
-            batch_sizes: Tuple[int, int, int] = (8, 1, 1, 1),
-            num_workers: Tuple[int, int, int] = (4, 4, 1, 1),
+            batch_sizes: Tuple[int, int, int, int] = (8, 1, 1, 1),
+            num_workers: Tuple[int, int, int, int] = (4, 4, 1, 1),
             validation_interval: int = 2,
             sliding_window_batch_size: int = 4,
             class_names: Tuple[str, ...] = ("Background", "Object", "Border"),
             experiment_name: str = "",
             model_name: str = "best_model",
             seed: int = 4294967295,
-            working_dir: str = '.'
+            working_dir: str = '.',
+            stdout: TextIOWrapper = sys.stdout,
+            stderr: TextIOWrapper = sys.stderr
     ):
         """Constructor.
 
@@ -89,6 +92,10 @@ class UNetBaseLearner(AbstractBaseLearner):
 
         # Call base constructor
         super().__init__()
+
+        # Standard pipe wrappers
+        self._stdout = stdout
+        self._stderr = stderr
 
         # Device (initialize as "cpu")
         self._device = "cpu"
@@ -226,9 +233,9 @@ class UNetBaseLearner(AbstractBaseLearner):
         for epoch in range(self._n_epochs):
 
             # Inform
-            print(f"{80 * '-'}")
-            print(f"Epoch {epoch + 1}/{self._n_epochs}")
-            print(f"{80 * '-'}")
+            print(f"{80 * '-'}", file=self._stdout)
+            print(f"Epoch {epoch + 1}/{self._n_epochs}", file=self._stdout)
+            print(f"{80 * '-'}", file=self._stdout)
 
             # Switch to training mode
             self._model.train()
@@ -262,19 +269,19 @@ class UNetBaseLearner(AbstractBaseLearner):
                 epoch_loss += loss.item()
                 epoch_len = len(self._train_dataset) // self._train_dataloader.batch_size
 
-                print(f"Batch {step}/{epoch_len}: train_loss = {loss.item():.4f}")
+                print(f"Batch {step}/{epoch_len}: train_loss = {loss.item():.4f}", file=self._stdout)
 
             epoch_loss /= step
             epoch_loss_values.append(epoch_loss)
-            print(f"Average loss = {epoch_loss:.4f}")
+            print(f"Average loss = {epoch_loss:.4f}", file=self._stdout)
             writer.add_scalar("average_train_loss", epoch_loss, epoch + 1)
 
             # Validation
             if (epoch + 1) % self._validation_interval == 0:
 
-                print(f"{80 * '-'}")
-                print(f"Validation")
-                print(f"{80 * '-'}")
+                print(f"{80 * '-'}", file=self._stdout)
+                print(f"Validation", file=self._stdout)
+                print(f"{80 * '-'}", file=self._stdout)
 
                 # Switch to evaluation mode
                 self._model.eval()
@@ -334,9 +341,9 @@ class UNetBaseLearner(AbstractBaseLearner):
                         metric_classes[c] = metric_sum_classes[c] / metric_count_classes[c]
 
                     # Print summary
-                    print(f"Global metric = {metric:.4f} ")
+                    print(f"Global metric = {metric:.4f} ", file=self._stdout)
                     for c in range(self._out_channels):
-                        print(f"Class '{self._class_names[c]}' metric = {metric_classes[c]:.4f} ")
+                        print(f"Class '{self._class_names[c]}' metric = {metric_classes[c]:.4f} ", file=self._stdout)
 
                     # Do we have the best metric so far?
                     if metric > best_metric:
@@ -346,8 +353,8 @@ class UNetBaseLearner(AbstractBaseLearner):
                             self._model.state_dict(),
                             model_file_name
                         )
-                        print(f"New best global metric = {best_metric:.4f} at epoch: {best_metric_epoch}")
-                        print(f"Saved best model '{Path(model_file_name).name}'")
+                        print(f"New best global metric = {best_metric:.4f} at epoch: {best_metric_epoch}", file=self._stdout)
+                        print(f"Saved best model '{Path(model_file_name).name}'", file=self._stdout)
 
                     # Add validation loss and metrics to log
                     writer.add_scalar("val_mean_dice_loss", metric, epoch + 1)
@@ -355,7 +362,7 @@ class UNetBaseLearner(AbstractBaseLearner):
                         metric_name = f"val_{self._class_names[c].lower()}_metric"
                         writer.add_scalar(metric_name, metric_classes[c], epoch + 1)
 
-        print(f"Training completed. Best_metric = {best_metric:.4f} at epoch: {best_metric_epoch}")
+        print(f"Training completed. Best_metric = {best_metric:.4f} at epoch: {best_metric_epoch}", file=self._stdout)
         writer.close()
 
         # Return success
@@ -383,9 +390,9 @@ class UNetBaseLearner(AbstractBaseLearner):
         """
 
         # Inform
-        print(f"{80 * '-'}")
-        print(f"Test prediction")
-        print(f"{80 * '-'}")
+        print(f"{80 * '-'}", file=self._stdout)
+        print(f"Test prediction", file=self._stdout)
+        print(f"{80 * '-'}", file=self._stdout)
 
         # Get the device
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -406,9 +413,8 @@ class UNetBaseLearner(AbstractBaseLearner):
                 map_location=torch.device('cpu')
             )
             self._model.load_state_dict(checkpoint)
-            print(f"Loaded best metric model {model_path}.")
+            print(f"Loaded best metric model {model_path}.", file=self._stdout)
         except Exception as e:
-            print(type(e))
             self._message = "Error: there was a problem loading the model! Aborting."
             return False
 
@@ -464,13 +470,13 @@ class UNetBaseLearner(AbstractBaseLearner):
                     tif.save(label_img)
 
                 # Inform
-                print(f"Saved {str(target_folder)}/({basename}.npy, {basename}.tif)")
+                print(f"Saved {str(target_folder)}/({basename}.npy, {basename}.tif)", file=self._stdout)
 
                 # Update the index
                 indx += 1
 
         # Inform
-        print(f"Test prediction completed.")
+        print(f"Test prediction completed.", file=self._stdout)
 
         # Return success
         return True
@@ -494,9 +500,9 @@ class UNetBaseLearner(AbstractBaseLearner):
         @return True if the prediction was successful, False otherwise.
         """
         # Inform
-        print(f"{80 * '-'}")
-        print(f"Prediction")
-        print(f"{80 * '-'}")
+        print(f"{80 * '-'}", file=self._stdout)
+        print(f"Prediction", file=self._stdout)
+        print(f"{80 * '-'}", file=self._stdout)
 
         # Get the device
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -513,9 +519,8 @@ class UNetBaseLearner(AbstractBaseLearner):
                 map_location=torch.device('cpu')
             )
             self._model.load_state_dict(checkpoint)
-            print(f"Loaded best metric model {model_path}.")
+            print(f"Loaded best metric model {model_path}.", file=self._stdout)
         except Exception as e:
-            print(type(e))
             self._message = "Error: there was a problem loading the model! Aborting."
             return False
 
@@ -529,7 +534,7 @@ class UNetBaseLearner(AbstractBaseLearner):
 
         # Get prediction dataloader
         if not self._define_prediction_data_loaders(input_folder):
-            self._message = "Error: could not instantiate prediction dataloader? Aborting."
+            self._message = "Error: could not instantiate prediction dataloader! Aborting."
             return False
 
         # Switch to evaluation mode
@@ -577,13 +582,13 @@ class UNetBaseLearner(AbstractBaseLearner):
                     tif.save(label_img)
 
                 # Inform
-                print(f"Saved {str(target_folder)}/({basename}.npy, {basename}.tif)")
+                print(f"Saved {str(target_folder)}/({basename}.npy, {basename}.tif)", file=self._stdout)
 
                 # Update the index
                 indx += 1
 
         # Inform
-        print(f"Prediction completed.")
+        print(f"Prediction completed.", file=self._stdout)
 
         # Return success
         return True
@@ -813,7 +818,7 @@ class UNetBaseLearner(AbstractBaseLearner):
 
         # Create U-Net
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using device '{self._device}'.")
+        print(f"Using device '{self._device}'.", file=self._stdout)
 
         # Try to free memory on the GPU
         if self._device != "cpu":
