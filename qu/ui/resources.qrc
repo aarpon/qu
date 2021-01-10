@@ -1,7 +1,9 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
     <qresource prefix="icons">
-        <file alias="info.svg">icons/info.png</file>
+        <file alias="info.png">icons/info.png</file>
+        <file alias="save.png">icons/save.png</file>
+        <file alias="revert.png">icons/revert.png</file>
     </qresource>
 </RCC>
 

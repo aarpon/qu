@@ -78,10 +78,25 @@ class QuMainWidget(QtWidgets.QWidget):
         qu_menu.setEnabled(False)
 
         # Now add the Qu menu
-        about_action = QAction(QIcon(":/icons/info.png"), "About", self)
-        about_action.triggered.connect(self._on_qu_about_action)
         qu_menu = self._viewer.window.main_menu.addMenu("Qu")
+
+        # About action
+        about_action = QAction(QIcon(":/icons/info.png"), "About Qu", self)
+        about_action.triggered.connect(self._on_qu_about_action)
         qu_menu.addAction(about_action)
+
+        # Add separator
+        qu_menu.addSeparator()
+
+        # Save mask
+        save_mask_action = QAction(QIcon(":/icons/save.png"), "Save mask", self)
+        save_mask_action.triggered.connect(self._on_qu_save_mask_action)
+        qu_menu.addAction(save_mask_action)
+
+        # Reload mask
+        reload_mask_action = QAction(QIcon(":/icons/revert.png"), "Reload mask", self)
+        reload_mask_action.triggered.connect(self._on_qu_reload_mask_action)
+        qu_menu.addAction(reload_mask_action)
 
     def _set_connections(self):
         """Connect signals and slots."""
@@ -468,6 +483,16 @@ class QuMainWidget(QtWidgets.QWidget):
         """Qu about action."""
         print("Qu version 0.0.1", file=self._out_stream)
 
+    @pyqtSlot(name="_on_qu_save_mask_action")
+    def _on_qu_save_mask_action(self):
+        """Qu save mask action."""
+        print("Save mask: Implement me!", file=self._out_stream)
+
+    @pyqtSlot(name="_on_qu_reload_mask_action")
+    def _on_qu_reload_mask_action(self):
+        """Qu reload mask action."""
+        print("Reload mask: Implement me!", file=self._out_stream)
+
     @pyqtSlot(name="_on_training_start")
     def _on_training_start(self):
         """Called when training is started."""
@@ -537,13 +562,16 @@ class QuMainWidget(QtWidgets.QWidget):
         """Try freeing memory on GPU and report."""
         gb = 1024 * 1024 * 1024
         if torch.cuda.is_available():
+            n = torch.cuda.get_device_name()
+            p = torch.cuda.get_device_capability()
             t = round(torch.cuda.get_device_properties(0).total_memory / gb, 2)
             c = round(torch.cuda.memory_reserved(0) / gb, 2)
             a = round(torch.cuda.memory_allocated(0) / gb, 2)
             torch.cuda.empty_cache()
             c2 = round(torch.cuda.memory_reserved(0) / gb, 2)
             a2 = round(torch.cuda.memory_allocated(0) / gb, 2)
-            print(f"Total memory = {t} GB, "
+            print(f"{n} (CP {p[0]}.{p[1]}) - "
+                  f"Total memory = {t} GB, "
                   f"allocated = {a2} GB (before = {a} GB), "
                   f"reserved = {c2} GB (before = {c} GB)", file=self._out_stream)
         else:

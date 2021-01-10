@@ -243,7 +243,7 @@
    <item>
     <widget class="QPushButton" name="pbFreeMemory">
      <property name="text">
-      <string>Free memory</string>
+      <string>Free GPU memory</string>
      </property>
     </widget>
    </item>
