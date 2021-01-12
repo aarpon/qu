@@ -226,7 +226,14 @@ class QuMainWidget(QtWidgets.QWidget):
         self.pBSelectDataRootFolder.setText(str(root_data_path))
 
         # Scan the data folder
-        self._data_model.scan()
+        try:
+            self._data_model.scan()
+        except FileNotFoundError as fe:
+            print(f"Error: {fe}", file=self._err_stream)
+            return
+        except ValueError as ve:
+            print(f"Error: {ve}", file=self._err_stream)
+            return
 
         # Update the data selector
         self._update_data_selector()

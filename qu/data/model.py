@@ -1,12 +1,16 @@
 from enum import Enum
 import gc
 from glob import glob
+
+import h5py
 import numpy as np
 from typing import Union, Tuple
 from natsort import natsorted
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 from tifffile import imread
+
+from qu.transform import one_hot_stack_to_label_image
 
 
 class MaskType(Enum):
@@ -17,7 +21,7 @@ class MaskType(Enum):
         Background pixels have value = 0; all other classes (1, 2, ..., nClasses) have pixels with
         intensities matching the class number.
 
-    TIFF_LABELS
+    NUMPY_LABELS
         A 2D numpy array. Dimensions = (1, height, width). Data type = np.int32.
         Background pixels have value = 0; all other classes (1, 2, ..., nClasses) have pixels with
         intensities matching the class number.
@@ -29,10 +33,23 @@ class MaskType(Enum):
         Pixels belonging to class 1 are set to True in image i = 1.
         Pixels belonging to class 2 are set to True in image i = 2.
         ...
+
+    H5_ONE_HOT
+        A 3D, HDF5 array. Dimensions = (nClasses, height, width). Data type = np.float32.
+        This is compatible with an ilastik export with:
+            * source = "Probabilities"
+            * data type = "floating 32-bit"
+            * axis order = "cyx"
+        Every image i = 0, ..., nClasses in the stack is associated to a class.
+        Probabilities will be binarized (p > 0.5 -> True)
+        Background pixels are set to True in image i = 0.
+        Pixels belonging to class 1 are set to True in image i = 1.
+        Pixels belonging to class 2 are set to True in image i = 2.
     """
     TIFF_LABELS = 0,
     NUMPY_LABELS = 1,
-    NUMPY_ONE_HOT = 2
+    NUMPY_ONE_HOT = 2,
+    H5_ONE_HOT = 3
 
 
 class DataModel:
@@ -244,23 +261,46 @@ class DataModel:
 
         # If the root data path is not set, return
         if self._root_data_path == '':
-            return
+            return FileNotFoundError("The data root path is not set.")
 
         # Scan for images
         self._image_names = natsorted(
             glob(str(Path(self._rel_images_path) / "*.tif"))
         )
 
-        # First look for .npy files
+        # If nothing was found, return failure
+        if len(self._image_names) == 0:
+            raise FileNotFoundError(f"No images were found.")
+
+        # Scan for masks
+
+        # First look for .tif{f} files
         self._mask_names = natsorted(
-            glob(str(Path(self._rel_masks_path) / "*.npy"))
+            glob(str(Path(self._rel_masks_path) / "*.tif*"))
         )
 
-        # If no .npy files were found, try with .tif{f} files
+        # If no .tif{f} files were found, try with .npy files
         if len(self._mask_names) == 0:
             self._mask_names = natsorted(
-                glob(str(Path(self._rel_masks_path) / "*.tif*"))
+                glob(str(Path(self._rel_masks_path) / "*.npy"))
             )
+
+        # If neither .tif{f} not .npy files were found, try with .h5 files
+        if len(self._mask_names) == 0:
+           self._mask_names = natsorted(
+                glob(str(Path(self._rel_masks_path) / "*.h5"))
+            )
+
+        # If nothing was found, return failure
+        if len(self._mask_names) == 0:
+            raise FileNotFoundError(f"No masks were found.")
+
+        # Check that the number of images matches the number of masks
+        if len(self._image_names) != len(self._mask_names):
+            raise ValueError(f"The number of images does not match the number of masks.")
+
+        # Return success
+        return True
 
     def preview_training_split(self):
         """Pre-calculate the number of images in the training, validation, and testing split.
@@ -395,9 +435,10 @@ class DataModel:
                 mask_file_name = self._mask_names[self._index]
                 if mask_file_name is not None:
 
-                    # Do we have an npy file or a tiff file?
-                    if str(mask_file_name).endswith(".tif") or \
-                            str(mask_file_name).endswith(".tiff"):
+                    # What is the file type?
+                    extension = str(Path(mask_file_name).suffix).lower()
+
+                    if extension == ".tif" or extension == ".tiff":
 
                         # Read the file
                         mask = imread(mask_file_name)
@@ -410,7 +451,7 @@ class DataModel:
                         if self._num_classes == 0:
                             self._num_classes = len(np.unique(mask))
 
-                    elif str(mask_file_name).endswith(".npy"):
+                    elif extension == ".npy":
 
                         # Read the file
                         mask = np.load(mask_file_name)
@@ -418,22 +459,68 @@ class DataModel:
                         # Set the mask type
                         if self._mask_type is None:
                             if mask.ndim == 2:
-
-                                # Set the type
                                 self._mask_type = MaskType.NUMPY_LABELS
-
-                                # Set the number of classes if not set
-                                if self._num_classes == 0:
-                                    self._num_classes = len(np.unique(mask))
-
                             else:
-
-                                # Set the type
                                 self._mask_type = MaskType.NUMPY_ONE_HOT
 
-                                # Set the number of classes if not set
-                                if self._num_classes == 0:
-                                    self._num_classes = mask.shape[0]
+                        # Set the number of classes if not set
+                        if self._num_classes == 0:
+                            self._num_classes = mask.shape[0]
+
+                        # Convert one-hot stack to label image for display
+                        if self._mask_type == MaskType.NUMPY_ONE_HOT:
+
+                            # Binarize the dataset
+                            mask[mask > 0.5] = True
+
+                            # Change into a labels image (for display)
+                            mask = one_hot_stack_to_label_image(
+                                mask,
+                                first_index_is_background=True,
+                                channels_first=True,
+                                dtype=np.int32
+                            )
+
+                    elif extension == ".h5":
+
+                        # Read the file
+                        mask_file = h5py.File(mask_file_name, 'r')
+
+                        # Get the dataset
+                        datasets = list(mask_file.keys())
+                        if len(datasets) != 1:
+                            raise Exception(f"Unexpected number of datasets in file {mask_file_name}")
+
+                        # Dataset name
+                        dataset = datasets[0]
+
+                        # Get the dataset
+                        mask = np.array(mask_file[dataset])
+
+                        # Close the HDF5 file
+                        mask_file.close()
+
+                        if mask.ndim == 2:
+                            raise Exception(f"The dataset in file {mask_file_name} must have "
+                                            f"dimensions (num_classes x height x width.")
+
+                        # Set the type
+                        self._mask_type = MaskType.H5_ONE_HOT
+
+                        # Set the number of classes if not set
+                        if self._num_classes == 0:
+                            self._num_classes = mask.shape[0]
+
+                        # Binarize the dataset
+                        mask[mask > 0.5] = True
+
+                        # Change into a labels image (for display)
+                        mask = one_hot_stack_to_label_image(
+                            mask,
+                            first_index_is_background=True,
+                            channels_first=True,
+                            dtype=np.int32
+                        )
 
                     else:
                         raise Exception(f"Unexpected mask file {mask_file_name}")
@@ -445,3 +532,5 @@ class DataModel:
                     self._masks[self._index] = mask
 
         return mask
+
+
