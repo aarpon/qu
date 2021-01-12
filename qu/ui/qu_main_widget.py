@@ -88,15 +88,26 @@ class QuMainWidget(QtWidgets.QWidget):
         # Add separator
         qu_menu.addSeparator()
 
+        # Add curation submenu
+        curation_menu = qu_menu.addMenu("Curation")
+
         # Save mask
         save_mask_action = QAction(QIcon(":/icons/save.png"), "Save mask", self)
         save_mask_action.triggered.connect(self._on_qu_save_mask_action)
-        qu_menu.addAction(save_mask_action)
+        curation_menu.addAction(save_mask_action)
 
         # Reload mask
         reload_mask_action = QAction(QIcon(":/icons/revert.png"), "Reload mask", self)
         reload_mask_action.triggered.connect(self._on_qu_reload_mask_action)
-        qu_menu.addAction(reload_mask_action)
+        curation_menu.addAction(reload_mask_action)
+
+        # Add separator
+        qu_menu.addSeparator()
+
+        # Add help action
+        help_action = QAction(QIcon(":/icons/help.png"), "Help", self)
+        help_action.triggered.connect(self._on_qu_help_action)
+        qu_menu.addAction(help_action)
 
     def _set_connections(self):
         """Connect signals and slots."""
@@ -499,6 +510,11 @@ class QuMainWidget(QtWidgets.QWidget):
     def _on_qu_reload_mask_action(self):
         """Qu reload mask action."""
         print("Reload mask: Implement me!", file=self._out_stream)
+
+    @pyqtSlot(name="_on_qu_help_action")
+    def _on_qu_help_action(self):
+        """Qu help action."""
+        print("Help: Implement me!", file=self._out_stream)
 
     @pyqtSlot(name="_on_training_start")
     def _on_training_start(self):
