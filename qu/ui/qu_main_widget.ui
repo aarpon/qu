@@ -41,17 +41,42 @@
     </widget>
    </item>
    <item>
-    <widget class="QSlider" name="hsImageSelector">
-     <property name="enabled">
-      <bool>false</bool>
-     </property>
-     <property name="tracking">
-      <bool>false</bool>
-     </property>
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-    </widget>
+    <layout class="QHBoxLayout" name="hlImageSelector">
+     <item>
+      <widget class="QSlider" name="hsImageSelector">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="tracking">
+        <bool>false</bool>
+       </property>
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="labelImageCounterCurrent">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="font">
+        <font>
+         <pointsize>7</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>0</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item>
     <widget class="QLabel" name="lbTrainingSection">
@@ -253,6 +278,15 @@
   <tabstop>pBSelectDataRootFolder</tabstop>
   <tabstop>hsImageSelector</tabstop>
   <tabstop>hsTrainingValidationSplit</tabstop>
+  <tabstop>hsValidationTestingSplit</tabstop>
+  <tabstop>cbArchitecturePicker</tabstop>
+  <tabstop>pbArchitectureSettings</tabstop>
+  <tabstop>pbTrain</tabstop>
+  <tabstop>pbSelectPredictionDataFolder</tabstop>
+  <tabstop>pbSelectPredictionTargetFolder</tabstop>
+  <tabstop>pbSelectPredictionModelFile</tabstop>
+  <tabstop>pbApplyPrediction</tabstop>
+  <tabstop>pbFreeMemory</tabstop>
  </tabstops>
  <resources/>
  <connections/>

@@ -1,9 +1,8 @@
-from monai.transforms import Transform, torch
+from monai.transforms import Transform
 import numpy as np
+import torch
 
-from monai.data import itk
-
-from qu.transform.transform import label_image_to_onehot_stack
+from qu.transform.transform import label_image_to_one_hot_stack
 
 
 class ToOneHot(Transform):
@@ -40,7 +39,7 @@ class ToOneHot(Transform):
         # Make sure 'label' is a numpy array
         label = np.array(label)
 
-        return label_image_to_onehot_stack(
+        return label_image_to_one_hot_stack(
             label,
             num_classes=self.num_classes,
             channels_first=True,

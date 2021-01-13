@@ -5,6 +5,8 @@ from PyQt5 import QtWidgets, uic, QtGui
 from PyQt5.QtCore import pyqtSlot, QThreadPool
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QFileDialog, QAction, QMessageBox
+from torch import __version__ as __torch_version__
+from monai import __version__ as __monai_version__
 import sys
 
 from qu import __version__
@@ -151,7 +153,7 @@ class QuMainWidget(QtWidgets.QWidget):
         """Display current image and mask."""
 
         # Get current data (if there is any)
-        image, mask = self._data_model.get_data_for_current_index()
+        image, mask = self._data_model.get_data_at_current_index()
         if image is None:
             self._update_data_selector()
             return
@@ -389,6 +391,9 @@ class QuMainWidget(QtWidgets.QWidget):
         # Update the display
         self.display()
 
+        # Display the image/mask number over the the slider
+        self.labelImageCounterCurrent.setText(str(value))
+
     @pyqtSlot(int, name="_on_train_val_split_selector_value_changed")
     def _on_train_val_split_selector_value_changed(self, value):
         """Recalculate splits and update UI elements."""
@@ -499,17 +504,28 @@ class QuMainWidget(QtWidgets.QWidget):
     @pyqtSlot(name="_on_qu_about_action")
     def _on_qu_about_action(self):
         """Qu about action."""
-        print("Qu version 0.0.1", file=self._out_stream)
+        print(f"Qu version {__version__}", file=self._out_stream)
+        print(f"pytorch version {__torch_version__}", file=self._out_stream)
+        print(f"monai version {__monai_version__}", file=self._out_stream)
 
     @pyqtSlot(name="_on_qu_save_mask_action")
     def _on_qu_save_mask_action(self):
         """Qu save mask action."""
-        print("Save mask: Implement me!", file=self._out_stream)
+
+        # Save current mask
+        if not self._data_model.save_mask_at_current_index():
+            print(self._data_model.last_error_message, file=self._err_stream)
 
     @pyqtSlot(name="_on_qu_reload_mask_action")
     def _on_qu_reload_mask_action(self):
         """Qu reload mask action."""
-        print("Reload mask: Implement me!", file=self._out_stream)
+
+        # Reload mask
+        if not self._data_model.reload_mask_at_current_index():
+            print(self._data_model.last_error_message, file=self._err_stream)
+
+        # Update the display
+        self.display()
 
     @pyqtSlot(name="_on_qu_help_action")
     def _on_qu_help_action(self):
@@ -549,11 +565,6 @@ class QuMainWidget(QtWidgets.QWidget):
     def _on_training_error(self, err):
         """Called if training failed."""
         print(f"Training error: {str(err)}", file=self._out_stream)
-
-    @pyqtSlot(name="_on_qu_about_action")
-    def _on_qu_about_action(self):
-        """Qu about action."""
-        print("Qu version 0.0.1", file=self._out_stream)
 
     @pyqtSlot(name="_on_prediction_start")
     def _on_prediction_start(self):

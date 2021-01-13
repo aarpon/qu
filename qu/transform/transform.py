@@ -55,7 +55,7 @@ def binary_masks_to_label_image(masks: tuple) -> np.ndarray:
     return labels
 
 
-def label_image_to_onehot_stack(
+def label_image_to_one_hot_stack(
         label: np.ndarray,
         num_classes: int = -1,
         channels_first: bool = False,
