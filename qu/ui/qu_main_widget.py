@@ -11,12 +11,11 @@ import sys
 
 from qu import __version__
 from qu.data.model import MaskType
-from qu.ml.unet_base_learner import UNetBaseLearner
-from qu.ml.unet_settings import UNetSettings
+from qu.ml.unet_2d_learner import UNet2DLearner
+from qu.ml.unet_2d_settings import UNet2DSettings
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataModel
-from qu.ml import UNetOneHotLearner, UNetLabelsLearner
 from qu.ui.qu_logger_widget import QuLoggerWidget
 from qu.ui.qu_unet_settings_dialog import QuUNetSettingsDialog
 from qu.ui.threads import LearnerManager, PredictorManager
@@ -60,11 +59,11 @@ class QuMainWidget(QWidget):
         # Initialize data model
         self._data_model = DataModel()
 
-        # Keep a reference to the learner (defaults to UNetLabelsLearner)
-        self._learner = UNetLabelsLearner()
+        # Keep a reference to the learner
+        self._learner = None
 
-        # Keep a reference to the settings for the learner (defaults to UNetSettings)
-        self._learner_settings = UNetSettings()
+        # Keep a reference to the settings for the learner (defaults to UNet2DSettings)
+        self._learner_settings = UNet2DSettings()
 
         # Dock it
         viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
@@ -461,7 +460,7 @@ class QuMainWidget(QWidget):
 
         # Instantiate the requested learner
         if arch == 0:
-            self._learner = UNetBaseLearner(
+            self._learner = UNet2DLearner(
                 self._data_model.mask_type,
                 in_channels=1,
                 out_channels=self._data_model.num_classes,

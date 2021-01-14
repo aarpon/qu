@@ -3,7 +3,7 @@ from typing import Tuple
 
 
 @dataclass
-class UNetSettings:
+class UNet2DSettings:
     """Settings for the UNet learner."""
 
     # Number of epochs
