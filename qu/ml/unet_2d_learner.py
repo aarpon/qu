@@ -284,7 +284,9 @@ class UNet2DLearner(AbstractBaseLearner):
 
                 # Update and store metrics
                 epoch_loss += loss.item()
-                epoch_len = len(self._train_dataset) // self._train_dataloader.batch_size
+                epoch_len = len(self._train_dataset) / self._train_dataloader.batch_size
+                if epoch_len != int(epoch_len):
+                    epoch_len = int(epoch_len) + 1
 
                 print(f"Batch {step}/{epoch_len}: train_loss = {loss.item():.4f}", file=self._stdout)
 
