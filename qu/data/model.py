@@ -65,6 +65,9 @@ class DataModel:
         # Index
         self._index: int = 0
 
+        # Number if input channels
+        self._num_channels: int = 0
+
         # Number of classes
         self._num_classes: int = 0
 
@@ -132,6 +135,15 @@ class DataModel:
     def num_masks(self):
         """Number of masks."""
         return len(self._mask_names)
+
+    @property
+    def num_channels(self):
+        """Number of input channels."""
+        if self._num_channels == 0:
+            if self.num_channels > 0:
+                # Force scanning
+                _ = self._get_or_load_mask()
+        return self._num_channels
 
     @property
     def num_classes(self):
@@ -574,6 +586,12 @@ class DataModel:
 
                 # Add it to the cache
                 self._images[self._index] = img
+
+        if self._num_channels == 0:
+            if img.ndim == 2:
+                self._num_channels = 1
+            else:
+                self._num_channels = img.shape[2]
 
         return img
 
