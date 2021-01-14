@@ -462,14 +462,14 @@ class QuMainWidget(QWidget):
         if arch == 0:
             self._learner = UNet2DLearner(
                 self._data_model.mask_type,
-                in_channels=1,
+                in_channels=self._data_model.num_channels,
                 out_channels=self._data_model.num_classes,
-                roi_size=(384, 384),
+                roi_size=self._learner_settings.roi_size,
                 num_epochs=self._learner_settings.num_epochs,
                 batch_sizes=self._learner_settings.batch_sizes,
-                num_workers=(1, 1, 1, 1),
-                validation_interval = self._learner_settings.validation_step,
-                sliding_window_batch_size = 4,
+                num_workers=self._learner_settings.num_workers,
+                validation_interval=self._learner_settings.validation_step,
+                sliding_window_batch_size=4,
                 working_dir=self._data_model.root_data_path,
                 stdout=self._out_stream,
                 stderr=self._err_stream

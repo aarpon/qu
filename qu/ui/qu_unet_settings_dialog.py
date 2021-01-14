@@ -42,18 +42,27 @@ class QuUNetSettingsDialog(QDialog):
         self.leNumEpochs.setValidator(QIntValidator(1, 1000000000, self))
         self.leValidationStep.setValidator(QIntValidator(1, 1000000000, self))
         self.leTrainingBatchSize.setValidator(QIntValidator(1, 1000000000, self))
+        self.lineEditROIHeight.setValidator(QIntValidator(1, 1000000000, self))
+        self.lineEditROIWidth.setValidator(QIntValidator(1, 1000000000, self))
+        self.leNumWorkers.setValidator(QIntValidator(1, 1000000000, self))
 
     def _fill_ui_fields(self):
         """Fill the UI elements with the values in the settings."""
         self.leNumEpochs.setText(str(self._settings.num_epochs))
         self.leValidationStep.setText(str(self._settings.validation_step))
         self.leTrainingBatchSize.setText(str(self._settings.batch_sizes[0]))
+        self.lineEditROIHeight.setText(str(self._settings.roi_size[0]))
+        self.lineEditROIWidth.setText(str(self._settings.roi_size[1]))
+        self.leNumWorkers.setText(str(self._settings.num_workers[0]))
 
     def _set_connections(self):
         """Plug signals and slots"""
         self.leNumEpochs.textChanged.connect(self._on_num_epochs_text_changed)
         self.leValidationStep.textChanged.connect(self._on_validation_step_text_changed)
         self.leTrainingBatchSize.textChanged.connect(self._on_training_batch_size_text_changed)
+        self.lineEditROIHeight.textChanged.connect(self._on_roi_height_text_changed)
+        self.lineEditROIWidth.textChanged.connect(self._on_roi_width_text_changed)
+        self.leNumWorkers.textChanged.connect(self._on_num_workers_text_changed)
 
     @staticmethod
     def get_settings(settings, parent=None):
@@ -89,7 +98,7 @@ class QuUNetSettingsDialog(QDialog):
 
     @pyqtSlot('QString', name="_on_training_batch_size_text_changed")
     def _on_training_batch_size_text_changed(self, str_value):
-        """Validation step."""
+        """Training batch size step."""
         # The IntValidator allows empty strings.
         if str_value == '':
             return
@@ -104,3 +113,57 @@ class QuUNetSettingsDialog(QDialog):
             self._settings.batch_sizes[3]
         )
         self._settings.batch_sizes = new_batch_sizes
+
+    @pyqtSlot('QString', name="_on_roi_height_text_changed")
+    def _on_roi_height_text_changed(self, str_value):
+        """ROI height."""
+        # The IntValidator allows empty strings.
+        if str_value == '':
+            return
+        value = int(str_value)
+        if value < 1:
+            value = 1
+            self.lineEditROIHeight.setText(str(value))
+        new_roi_size = (
+            value,
+            self._settings.roi_size[1]
+        )
+        self._settings.roi_size = new_roi_size
+
+    @pyqtSlot('QString', name="_on_roi_width_text_changed")
+    def _on_roi_width_text_changed(self, str_value):
+        """ROI width."""
+        # The IntValidator allows empty strings.
+        if str_value == '':
+            return
+        value = int(str_value)
+        if value < 1:
+            value = 1
+            self.lineEditROIWidth.setText(str(value))
+        new_roi_size = (
+            self._settings.roi_size[0],
+            value
+        )
+        self._settings.roi_size = new_roi_size
+
+    @pyqtSlot('QString', name="_on_num_workers_text_changed")
+    def _on_num_workers_text_changed(self, str_value):
+        """Numnber of workers.
+
+        For now, we set the same number of workers for
+        training, validation, testing, and prediction.
+        """
+        # The IntValidator allows empty strings.
+        if str_value == '':
+            return
+        value = int(str_value)
+        if value < 1:
+            value = 1
+            self.leNumWorkers.setText(str(value))
+        new_num_workers = (
+            value,
+            value,
+            value,
+            value
+        )
+        self._settings.num_workers = new_num_workers

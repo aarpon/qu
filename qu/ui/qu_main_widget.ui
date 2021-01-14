@@ -187,7 +187,7 @@
        </property>
        <item>
         <property name="text">
-         <string>Segmentation (U-Net)</string>
+         <string>Segmentation (U-Net 2D)</string>
         </property>
        </item>
       </widget>
