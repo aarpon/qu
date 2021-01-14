@@ -16,12 +16,19 @@ from monai.losses import GeneralizedDiceLoss
 from monai.metrics import DiceMetric
 from monai.networks.nets import UNet
 from monai.utils import set_determinism
+from monai.transforms import Activations, AddChannel, AsDiscrete, \
+    Compose, LoadImage, LoadNumpy, RandRotate90, RandSpatialCrop, \
+    ScaleIntensity, ToTensor
 from natsort import natsorted
 from tifffile import TiffWriter
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 
+from qu.data.model import MaskType
+from qu.extern.monai.transform import ToOneHot
+from qu.extern.monai.transform.transform import Identity
 from qu.ml.abstract_base_learner import AbstractBaseLearner
+from qu.transform import one_hot_stack_to_label_image
 
 
 class UNetBaseLearner(AbstractBaseLearner):
@@ -29,6 +36,7 @@ class UNetBaseLearner(AbstractBaseLearner):
 
     def __init__(
             self,
+            mask_type: MaskType = MaskType.TIFF_LABELS,
             in_channels: int = 1,
             out_channels: int = 3,
             roi_size: Tuple[int, int] = (384, 384),
@@ -46,6 +54,12 @@ class UNetBaseLearner(AbstractBaseLearner):
             stderr: TextIOWrapper = sys.stderr
     ):
         """Constructor.
+
+        @param mask_type: MaskType
+            Type of mask: defines file type, mask geometry and they way pixels
+            are assigned to the various classes.
+
+            @see qu.data.model.MaskType
 
         @param in_channels: int, optional: default = 1
             Number of channels in the input (e.g. 1 for gray-value images).
@@ -99,6 +113,9 @@ class UNetBaseLearner(AbstractBaseLearner):
 
         # Device (initialize as "cpu")
         self._device = "cpu"
+
+        # Mask type
+        self._mask_type = mask_type
 
         # Input and output channels
         self._in_channels = in_channels
@@ -643,9 +660,18 @@ class UNetBaseLearner(AbstractBaseLearner):
         self._test_image_names = test_image_names
         self._test_mask_names = test_mask_names
 
-    def _prediction_to_label_tiff_image(self, prediction) -> np.ndarray:
+    def _prediction_to_label_tiff_image(self, prediction):
         """Save the prediction to a label image (TIFF)"""
-        raise NotImplementedError("Implement me!")
+
+        # Convert to label image
+        label_img = one_hot_stack_to_label_image(
+            prediction,
+            first_index_is_background=True,
+            channels_first=True,
+            dtype=np.uint16
+        )
+
+        return label_img
 
     def _define_transforms(self):
         """Define and initialize all data transforms.
@@ -663,7 +689,110 @@ class UNetBaseLearner(AbstractBaseLearner):
 
         @return True if data transforms could be instantiated, False otherwise.
         """
-        raise NotImplementedError("Implement me!")
+
+        if self._mask_type == MaskType.UNKNOWN:
+            raise Exception("The mask type is unknown. Cannot continue!")
+
+        # Depending on the mask type, we will need to adapt the Mask Loader
+        # and Transform. We start by initializing the most common types.
+        MaskLoader = LoadImage(image_only=True)
+        MaskTransform = Identity
+
+        # Adapt the transform for the LABEL types
+        if self._mask_type == MaskType.TIFF_LABELS or self._mask_type == MaskType.NUMPY_LABELS:
+            MaskTransform = ToOneHot(num_classes=self._out_channels)
+
+        # The H5_ONE_HOT type requires a different loader
+        if self._mask_type == MaskType.H5_ONE_HOT:
+            # MaskLoader: still missing
+            raise Exception("HDF5 one-hot masks are not supported yet!")
+
+        # Define transforms for training
+        self._train_image_transforms = Compose(
+            [
+                LoadImage(image_only=True),
+                ScaleIntensity(),
+                AddChannel(),
+                RandSpatialCrop(self._roi_size, random_size=False),
+                RandRotate90(prob=0.5, spatial_axes=(0, 1)),
+                ToTensor()
+            ]
+        )
+        self._train_mask_transforms = Compose(
+            [
+                MaskLoader,
+                MaskTransform,
+                RandSpatialCrop(self._roi_size, random_size=False),
+                RandRotate90(prob=0.5, spatial_axes=(0, 1)),
+                ToTensor()
+            ]
+        )
+
+        # Define transforms for validation
+        self._validation_image_transforms = Compose(
+            [
+                LoadImage(image_only=True),
+                ScaleIntensity(),
+                AddChannel(),
+                ToTensor()
+            ]
+        )
+        self._validation_mask_transforms = Compose(
+            [
+                MaskLoader,
+                MaskTransform,
+                ToTensor()
+            ]
+        )
+
+        # Define transforms for testing
+        self._test_image_transforms = Compose(
+            [
+                LoadImage(image_only=True),
+                ScaleIntensity(),
+                AddChannel(),
+                ToTensor()
+            ]
+        )
+        self._test_mask_transforms = Compose(
+            [
+                MaskLoader,
+                MaskTransform,
+                ToTensor()
+            ]
+        )
+
+        # Define transforms for prediction
+        self._prediction_image_transforms = Compose(
+            [
+                LoadImage(image_only=True),
+                ScaleIntensity(),
+                AddChannel(),
+                ToTensor()
+            ]
+        )
+
+        # Post transforms
+        self._validation_post_transforms = Compose(
+            [
+                Activations(softmax=True),
+                AsDiscrete(threshold_values=True)
+            ]
+        )
+
+        self._test_post_transforms = Compose(
+            [
+                Activations(softmax=True),
+                AsDiscrete(threshold_values=True)
+            ]
+        )
+
+        self._prediction_post_transforms = Compose(
+            [
+                Activations(softmax=True),
+                AsDiscrete(threshold_values=True)
+            ]
+        )
 
     def _define_training_data_loaders(self) -> bool:
         """Initialize training datasets and data loaders.

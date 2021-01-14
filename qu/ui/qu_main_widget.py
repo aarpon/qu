@@ -1,25 +1,28 @@
 from pathlib import Path
 
 import torch
-from PyQt5 import QtWidgets, uic, QtGui
+from PyQt5 import uic, QtGui
 from PyQt5.QtCore import pyqtSlot, QThreadPool
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QFileDialog, QAction, QMessageBox
+from PyQt5.QtWidgets import QWidget, QFileDialog, QAction, QMessageBox
 from torch import __version__ as __torch_version__
 from monai import __version__ as __monai_version__
 import sys
 
 from qu import __version__
 from qu.data.model import MaskType
+from qu.ml.unet_base_learner import UNetBaseLearner
+from qu.ml.unet_settings import UNetSettings
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataModel
 from qu.ml import UNetOneHotLearner, UNetLabelsLearner
 from qu.ui.qu_logger_widget import QuLoggerWidget
+from qu.ui.qu_unet_settings_dialog import QuUNetSettingsDialog
 from qu.ui.threads import LearnerManager, PredictorManager
 
 
-class QuMainWidget(QtWidgets.QWidget):
+class QuMainWidget(QWidget):
 
     def __init__(self, viewer, *args, **kwargs):
         """Constructor."""
@@ -57,8 +60,11 @@ class QuMainWidget(QtWidgets.QWidget):
         # Initialize data model
         self._data_model = DataModel()
 
-        # Keep a reference to the learner
-        self._learner = None
+        # Keep a reference to the learner (defaults to UNetLabelsLearner)
+        self._learner = UNetLabelsLearner()
+
+        # Keep a reference to the settings for the learner (defaults to UNetSettings)
+        self._learner_settings = UNetSettings()
 
         # Dock it
         viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
@@ -124,6 +130,7 @@ class QuMainWidget(QtWidgets.QWidget):
         self.hsTrainingValidationSplit.valueChanged.connect(self._on_train_val_split_selector_value_changed)
         self.hsValidationTestingSplit.valueChanged.connect(self._on_val_test_split_selector_value_changed)
         self.pbTrain.clicked.connect(self._on_run_training)
+        self.pbArchitectureSettings.clicked.connect(self._on_open_settings_dialog)
 
         # Prediction
         self.pbSelectPredictionDataFolder.clicked.connect(self._on_select_input_for_prediction)
@@ -432,38 +439,38 @@ class QuMainWidget(QtWidgets.QWidget):
             num_test
         )
 
+    @pyqtSlot(name="_on_open_settings_dialog")
+    def _on_open_settings_dialog(self):
+        """Open settings dialog for currently selected architecture."""
+
+        # Get index of selected architecture
+        arch = self.cbArchitecturePicker.currentIndex()
+
+        if arch == 0:
+            settings_copy = QuUNetSettingsDialog.get_settings(self._learner_settings)
+
+        if settings_copy is not None:
+            self._learner_settings = settings_copy
+
     @pyqtSlot(name="_on_run_training")
     def _on_run_training(self):
         """Instantiate the Learner (if needed) and run the training."""
 
-        # @TODO: Retrieve the learner from the pull-down selector!
+        # Get index of selected architecture
+        arch = self.cbArchitecturePicker.currentIndex()
 
-        # Instantiate the learner depending on the mask type
-        if self._data_model.mask_type == MaskType.NUMPY_ONE_HOT:
-
-            # @TODO: Store it and check if it already exists
-            self._learner = UNetOneHotLearner(
+        # Instantiate the requested learner
+        if arch == 0:
+            self._learner = UNetBaseLearner(
+                self._data_model.mask_type,
                 in_channels=1,
                 out_channels=self._data_model.num_classes,
                 roi_size=(384, 384),
-                num_epochs=4,
-                batch_sizes=(8, 1, 1, 1),
+                num_epochs=self._learner_settings.num_epochs,
+                batch_sizes=self._learner_settings.batch_sizes,
                 num_workers=(1, 1, 1, 1),
-                working_dir=self._data_model.root_data_path,
-                stdout=self._out_stream,
-                stderr=self._err_stream
-            )
-
-        else:
-
-            # @TODO: Store it and check if it already exists
-            self._learner = UNetLabelsLearner(
-                in_channels=1,
-                out_channels=self._data_model.num_classes,
-                roi_size=(384, 384),
-                num_epochs=4,
-                batch_sizes=(8, 1, 1, 1),
-                num_workers=(1, 1, 1, 1),
+                validation_interval = self._learner_settings.validation_step,
+                sliding_window_batch_size = 4,
                 working_dir=self._data_model.root_data_path,
                 stdout=self._out_stream,
                 stderr=self._err_stream
