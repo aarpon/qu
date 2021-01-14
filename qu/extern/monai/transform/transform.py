@@ -47,6 +47,27 @@ class ToOneHot(Transform):
         )
 
 
+class Identity(Transform):
+    """Returns the input untouched.
+
+    Use this when you need to specify a Transform, but no operation should be
+    applied to the input tensor.
+    """
+
+    def __init__(self) -> None:
+        """Constructor"""
+        super().__init__()
+
+    def __call__(self, input: np.ndarray) -> np.ndarray:
+        """
+        Just return the input.
+
+        @return the input, untouched.
+        """
+
+        return input
+
+
 class Informer(Transform):
     """
     Simple reporter to be added to a Composed list of Transforms
