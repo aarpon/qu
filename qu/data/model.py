@@ -638,7 +638,10 @@ class DataModel:
 
                         # Set the number of classes if not set
                         if self._num_classes == 0:
-                            self._num_classes = mask.shape[0]
+                            if self._mask_type == MaskType.NUMPY_LABELS:
+                                self._num_classes = len(np.unique(mask))
+                            else:
+                                self._num_classes = mask.shape[0]
 
                         # Convert one-hot stack to label image for display
                         if self._mask_type == MaskType.NUMPY_ONE_HOT:
