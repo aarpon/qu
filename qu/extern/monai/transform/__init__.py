@@ -1,1 +1,1 @@
-from .transform import ToOneHot, Informer
+from .transform import ToOneHot

@@ -26,7 +26,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from qu.data.model import MaskType
 from qu.extern.monai.transform import ToOneHot
-from qu.extern.monai.transform.transform import Identity
+from qu.extern.monai.transform.transform import Identity, LoadMask
 from qu.ml.abstract_base_learner import AbstractBaseLearner
 from qu.transform import one_hot_stack_to_label_image
 
@@ -697,7 +697,7 @@ class UNet2DLearner(AbstractBaseLearner):
 
         # Depending on the mask type, we will need to adapt the Mask Loader
         # and Transform. We start by initializing the most common types.
-        MaskLoader = LoadImage(image_only=True)
+        MaskLoader = LoadMask(self._mask_type)
         MaskTransform = Identity
 
         # Adapt the transform for the LABEL types

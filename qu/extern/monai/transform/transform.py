@@ -1,7 +1,11 @@
+from pathlib import Path
+
+import h5py
 from monai.transforms import Transform
 import numpy as np
-import torch
+from tifffile import imread
 
+from qu.data.model import MaskType
 from qu.transform.transform import label_image_to_one_hot_stack
 
 
@@ -68,33 +72,32 @@ class Identity(Transform):
         return input
 
 
-class Informer(Transform):
-    """
-    Simple reporter to be added to a Composed list of Transforms
-    to return some information.
-    """
-    def __init__(self, *args, **kwargs):
-        """Constructor.
+class LoadMask(Transform):
+    """Loads all types of masks supported by Qu."""
 
-        @param name: str
-            Name of the Informer. It is printed as a prefix to the output.
-        """
-        super().__init__()
-        self.name = ""
-        if "name" in kwargs:
-            self.name = kwargs['name']
+    def __init__(self, mask_type: MaskType):
 
-    def __call__(self, data):
-        """Call the Transform."""
-        prefix = f"{self.name} :: " if self.name != "" else ""
-        if type(data) == torch.Tensor:
-            print(f"{prefix}Torch tensor: Size = {data.size()}, type = {data.dtype}, min = {data.min()}, max = {data.max()}")
-        elif type(data) == np.ndarray:
-            print(f"{prefix}Numpy array: Size = {data.shape}, type = {data.dtype}, min = {data.min()}, max = {data.max()}")
-        elif type(data) == str:
-            print(f"{prefix}String: value = '{str}'")
-        elif type(data) == itk.itkPyBufferPython.NDArrayITKBase:
-            print(f"{prefix}ITK array: Size = {data.shape}, type = {data.dtype}, min = {data.min().item()}, max = {data.max().item()}")
+        # Store the mask type
+        self._mask_type = mask_type
+
+    def __call__(self, mask_file_name):
+        """Call the transform."""
+
+        if self._mask_type == MaskType.TIFF_LABELS:
+            mask = imread(mask_file_name)
+        elif self._mask_type == MaskType.NUMPY_LABELS or self._mask_type == MaskType.NUMPY_ONE_HOT:
+            mask = np.load(mask_file_name)
+        elif self._mask_type == MaskType.H5_ONE_HOT:
+            mask_file = h5py.File(mask_file_name, 'r')
+            datasets = list(mask_file.keys())
+            if len(datasets) != 1:
+                raise Exception(f"Unexpected number of datasets in file {mask_file_name}")
+            dataset = datasets[0]
+            mask = np.array(mask_file[dataset])
+            mask_file.close()
         else:
-            print(f"{prefix}{type(data)}: {str(data)}")
-        return data
+            raise Exception(f"Unknown type for mask {mask_file_name}")
+
+        mask = mask.astype(np.int32)
+
+        return mask
