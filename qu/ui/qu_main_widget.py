@@ -566,6 +566,9 @@ class QuMainWidget(QWidget):
         # Get the data
         demo_dataset_path = get_demo_dataset()
 
+        # Inform
+        print("Open demo dataset.", file=self._out_stream)
+
         # Set the path in the DataModel
         self._data_model.root_data_path = demo_dataset_path
 

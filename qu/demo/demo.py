@@ -27,16 +27,18 @@ def get_demo_dataset():
     # Is the data already present?
     if demo_folder.is_dir():
         if images_folder.is_dir():
-            if len(glob(images_folder / "*.tif")) == 90:
+            if len(glob(str(images_folder / "*.tif*"))) == 90:
                 if masks_folder.is_dir():
-                    if len(glob(masks_folder / "*.tif")) == 90:
+                    if len(glob(str(masks_folder / "*.tif*"))) == 90:
                         return demo_folder
 
     # Is the zip archive already present?
     archive_found = False
     if (data_folder / "demo.zip").is_file():
-        if (data_folder / "demo.zip").stat().st_size > 0:
+        if (data_folder / "demo.zip").stat().st_size == 81341513:
             archive_found = True
+        else:
+            (data_folder / "demo.zip").unlink()
 
     if not archive_found:
 
