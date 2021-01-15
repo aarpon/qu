@@ -96,6 +96,13 @@ class QuMainWidget(QWidget):
         # Add separator
         qu_menu.addSeparator()
 
+        # Add processing submenu
+        processing_menu = qu_menu.addMenu("Processing")
+
+        # Add placeholder for now
+        will_follow_action = QAction("Will follow", self)
+        processing_menu.addAction(will_follow_action)
+
         # Add curation submenu
         curation_menu = qu_menu.addMenu("Curation")
 
@@ -108,6 +115,16 @@ class QuMainWidget(QWidget):
         reload_mask_action = QAction(QIcon(":/icons/revert.png"), "Reload mask", self)
         reload_mask_action.triggered.connect(self._on_qu_reload_mask_action)
         curation_menu.addAction(reload_mask_action)
+
+        # Add separator
+        qu_menu.addSeparator()
+
+        # Add tools submenu
+        tools_menu = qu_menu.addMenu("Tools")
+
+        # Add placeholder for now
+        launch_tensorboard_action = QAction("Launch tensorboard (will follow)", self)
+        tools_menu.addAction(launch_tensorboard_action)
 
         # Add separator
         qu_menu.addSeparator()
