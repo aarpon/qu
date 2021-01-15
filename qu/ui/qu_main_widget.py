@@ -481,6 +481,11 @@ class QuMainWidget(QWidget):
     def _on_run_training(self):
         """Instantiate the Learner (if needed) and run the training."""
 
+        # Is there data to train on?
+        if self._data_model.num_images == 0:
+            print("Training: please load a dataset first!", file=self._err_stream)
+            return
+
         # Get index of selected architecture
         arch = self.cbArchitecturePicker.currentIndex()
 
