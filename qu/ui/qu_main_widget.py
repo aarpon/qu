@@ -11,6 +11,7 @@ import sys
 
 from qu import __version__
 from qu.data.model import MaskType
+from qu.demo import get_demo_dataset
 from qu.ml.unet_2d_learner import UNet2DLearner
 from qu.ml.unet_2d_settings import UNet2DSettings
 from qu.ui import _ui_folder_path
@@ -111,6 +112,11 @@ class QuMainWidget(QWidget):
         # Add separator
         qu_menu.addSeparator()
 
+        # Add get demo
+        demo_action = QAction(QIcon(":/icons/download.png"), "Demo dataset", self)
+        demo_action.triggered.connect(self._on_qu_demo_action)
+        qu_menu.addAction(demo_action)
+
         # Add help action
         help_action = QAction(QIcon(":/icons/help.png"), "Help", self)
         help_action.triggered.connect(self._on_qu_help_action)
@@ -207,6 +213,9 @@ class QuMainWidget(QWidget):
         self.hsValidationTestingSplit.blockSignals(False)
         self.hsValidationTestingSplit.setEnabled(True)
         self.lbNumberValidationTestingImages.setText(num_val_test_images)
+
+    def _setup_session(self, data_folder):
+        """Set up a new session using the specified data folder."""
 
     @pyqtSlot(bool, name="_on_select_data_root_folder")
     def _on_select_data_root_folder(self) -> None:
@@ -531,6 +540,65 @@ class QuMainWidget(QWidget):
             print(self._data_model.last_error_message, file=self._err_stream)
 
         # Update the display
+        self.display()
+
+    @pyqtSlot(name="_on_qu_demo_action")
+    def _on_qu_demo_action(self):
+        """Qu demo action."""
+
+        # Check whether we already have data loaded
+        if self._data_model.num_images > 0:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Question)
+            msg.setText("Are you sure you want to discard current data?")
+            msg.setInformativeText("All data and changes will be lost.")
+            msg.setWindowTitle("Qu:: Question")
+            msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+            if msg.exec_() == QMessageBox.Cancel:
+                return
+
+            # Reset current model
+            self._data_model.reset()
+
+        # Inform
+        print("If needed, download and extract demo data.", file=self._out_stream)
+
+        # Get the data
+        demo_dataset_path = get_demo_dataset()
+
+        # Set the path in the DataModel
+        self._data_model.root_data_path = demo_dataset_path
+
+        # Retrieve the (parsed) root data path
+        root_data_path = self._data_model.root_data_path
+
+        # Update the button
+        self.pBSelectDataRootFolder.setText(str(root_data_path))
+
+        # Scan the data folder
+        try:
+            self._data_model.scan()
+        except FileNotFoundError as fe:
+            print(f"Error: {fe}", file=self._err_stream)
+            return
+        except ValueError as ve:
+            print(f"Error: {ve}", file=self._err_stream)
+            return
+
+        # Update the data selector
+        self._update_data_selector()
+
+        # Update the training/validation/test split sliders
+        num_train, num_val, num_test = self._data_model.preview_training_split()
+        self._update_training_ui_elements(
+            self._data_model.training_fraction,
+            self._data_model.validation_fraction,
+            num_train,
+            num_val,
+            num_test
+        )
+
+        # Display current data
         self.display()
 
     @pyqtSlot(name="_on_qu_help_action")

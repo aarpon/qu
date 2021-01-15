@@ -5,6 +5,7 @@
         <file alias="save.png">icons/save.png</file>
         <file alias="revert.png">icons/revert.png</file>
         <file alias="help.png">icons/help.png</file>
+        <file alias="download.png">icons/download.png</file>
     </qresource>
 </RCC>
 
