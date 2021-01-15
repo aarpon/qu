@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import h5py
 from monai.transforms import Transform
 import numpy as np

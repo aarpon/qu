@@ -1,5 +1,4 @@
 import sys
-from abc import ABC
 from datetime import datetime
 from glob import glob
 from io import TextIOWrapper
@@ -17,7 +16,7 @@ from monai.metrics import DiceMetric
 from monai.networks.nets import UNet
 from monai.utils import set_determinism
 from monai.transforms import Activations, AddChannel, AsDiscrete, \
-    Compose, LoadImage, LoadNumpy, RandRotate90, RandSpatialCrop, \
+    Compose, LoadImage, RandRotate90, RandSpatialCrop, \
     ScaleIntensity, ToTensor
 from natsort import natsorted
 from tifffile import TiffWriter
@@ -25,8 +24,8 @@ from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 
 from qu.data.model import MaskType
-from qu.extern.monai.transform import ToOneHot
-from qu.extern.monai.transform.transform import Identity, LoadMask
+from qu.transform.extern.monai import ToOneHot
+from qu.transform.extern.monai import Identity, LoadMask
 from qu.ml.abstract_base_learner import AbstractBaseLearner
 from qu.transform import one_hot_stack_to_label_image
 
