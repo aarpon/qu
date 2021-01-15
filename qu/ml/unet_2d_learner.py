@@ -810,8 +810,7 @@ class UNet2DLearner(AbstractBaseLearner):
             pin_memory = False
         else:
             persistent_workers = False
-            #pin_memory = torch.cuda.is_available()
-            pin_memory = False
+            pin_memory = torch.cuda.is_available()
 
         if len(self._train_image_names) == 0 or \
                 len(self._train_mask_names) == 0 or \
