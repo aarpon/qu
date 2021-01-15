@@ -1014,6 +1014,11 @@ class UNet2DLearner(AbstractBaseLearner):
 
         Current date time is appended and the full path is returned.
         """
+
+        # Make sure the "runs" subfolder exists
+        runs_dir = Path(self._working_dir) / "runs"
+        runs_dir.mkdir(parents=True, exist_ok=True)
+
         now = datetime.now()  # current date and time
         date_time = now.strftime("%Y%m%d_%H%M%S")
 
@@ -1021,11 +1026,11 @@ class UNet2DLearner(AbstractBaseLearner):
         experiment_name = f"{self._raw_experiment_name}_{date_time}" \
             if self._raw_experiment_name != "" \
             else f"{date_time}"
-        experiment_name = Path(self._working_dir) / experiment_name
+        experiment_name = runs_dir / experiment_name
 
         # Best model file name
         name = Path(self._raw_model_file_name).stem
         model_file_name = f"{name}_{date_time}.pth"
-        model_file_name = Path(self._working_dir) / model_file_name
+        model_file_name = runs_dir / model_file_name
 
         return str(experiment_name), str(model_file_name)
