@@ -35,7 +35,7 @@ def get_demo_dataset():
     # Is the zip archive already present?
     archive_found = False
     if (data_folder / "demo.zip").is_file():
-        if (data_folder / "demo.zip").stat().st_size == 81341513:
+        if (data_folder / "demo.zip").stat().st_size == 81348708:
             archive_found = True
         else:
             (data_folder / "demo.zip").unlink()
