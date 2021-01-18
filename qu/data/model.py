@@ -152,7 +152,8 @@ class DataModel:
             if self.num_images > 0:
                 # Force scanning
                 _ = self._get_or_load_mask()
-            raise Exception("No images found!")
+            else:
+                raise Exception("No images found!")
         return self._num_classes
 
     @property
@@ -165,7 +166,8 @@ class DataModel:
             if self.num_images > 0:
                 # Force scanning
                 _ = self._get_or_load_mask()
-            raise Exception("No masks found!")
+            else:
+                raise Exception("No masks found!")
         return self._mask_type
 
     @property
