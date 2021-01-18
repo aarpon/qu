@@ -45,6 +45,7 @@ class QuUNetSettingsDialog(QDialog):
         self.lineEditROIHeight.setValidator(QIntValidator(1, 1000000000, self))
         self.lineEditROIWidth.setValidator(QIntValidator(1, 1000000000, self))
         self.leNumWorkers.setValidator(QIntValidator(1, 1000000000, self))
+        self.leSlidingWindowBatchSize.setValidator(QIntValidator(1, 1000000000, self))
 
     def _fill_ui_fields(self):
         """Fill the UI elements with the values in the settings."""
@@ -54,6 +55,7 @@ class QuUNetSettingsDialog(QDialog):
         self.lineEditROIHeight.setText(str(self._settings.roi_size[0]))
         self.lineEditROIWidth.setText(str(self._settings.roi_size[1]))
         self.leNumWorkers.setText(str(self._settings.num_workers[0]))
+        self.leSlidingWindowBatchSize.setText(str(self._settings.sliding_window_batch_size))
 
     def _set_connections(self):
         """Plug signals and slots"""
@@ -63,6 +65,7 @@ class QuUNetSettingsDialog(QDialog):
         self.lineEditROIHeight.textChanged.connect(self._on_roi_height_text_changed)
         self.lineEditROIWidth.textChanged.connect(self._on_roi_width_text_changed)
         self.leNumWorkers.textChanged.connect(self._on_num_workers_text_changed)
+        self.leSlidingWindowBatchSize.textChanged.connect(self._on_sliding_window_batch_size_text_changed)
 
     @staticmethod
     def get_settings(settings, parent=None):
@@ -167,3 +170,15 @@ class QuUNetSettingsDialog(QDialog):
             value
         )
         self._settings.num_workers = new_num_workers
+
+    @pyqtSlot('QString', name="_on_sliding_window_batch_size_text_changed")
+    def _on_sliding_window_batch_size_text_changed(self, str_value):
+        """Sliding window batch size (for prediction)."""
+        # The IntValidator allows empty strings.
+        if str_value == '':
+            return
+        value = int(str_value)
+        if value < 1:
+            value = 1
+            self.sliding_window_batch_size.setText(str(value))
+        self._settings.sliding_window_batch_size = value

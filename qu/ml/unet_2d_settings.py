@@ -26,3 +26,17 @@ class UNet2DSettings:
         os.cpu_count(),
         os.cpu_count()
     )
+
+    # Sliding window batch size
+    sliding_window_batch_size: int = 4
+
+    def to_dict(self):
+        """Return settings as a dictionary."""
+        return {
+            "num_epochs": self.num_epochs,
+            "validation_step": self.validation_step,
+            "batch_sizes": self.batch_sizes,
+            "roi_size": self.roi_size,
+            "num_workers": self.num_workers,
+            "sliding_window_batch_size": self.sliding_window_batch_size
+        }

@@ -42,7 +42,7 @@ class UNet2DLearner(AbstractBaseLearner):
             num_epochs: int = 400,
             batch_sizes: Tuple[int, int, int, int] = (8, 1, 1, 1),
             num_workers: Tuple[int, int, int, int] = (4, 4, 1, 1),
-            validation_interval: int = 2,
+            validation_step: int = 2,
             sliding_window_batch_size: int = 4,
             class_names: Tuple[str, ...] = ("Background", "Object", "Border"),
             experiment_name: str = "",
@@ -78,7 +78,7 @@ class UNet2DLearner(AbstractBaseLearner):
         @param num_workers: Tuple[int, int, int], optional: default = (4, 4, 1, 1)
             Number of workers for training, validation, testing, and prediction, respectively.
 
-        @param validation_interval: int, optional: default = 2
+        @param validation_step: int, optional: default = 2
             Number of training steps before the next validation is performed.
 
         @param sliding_window_batch_size: int, optional: default = 4
@@ -131,7 +131,7 @@ class UNet2DLearner(AbstractBaseLearner):
         self._test_num_workers = num_workers[2]
         self._prediction_num_workers = num_workers[3]
         self._n_epochs = num_epochs
-        self._validation_interval = validation_interval
+        self._validation_step = validation_step
         self._sliding_window_batch_size = sliding_window_batch_size
 
         # Other parameters
@@ -249,9 +249,7 @@ class UNet2DLearner(AbstractBaseLearner):
         for epoch in range(self._n_epochs):
 
             # Inform
-            print(f"{80 * '-'}", file=self._stdout)
-            print(f"Epoch {epoch + 1}/{self._n_epochs}", file=self._stdout)
-            print(f"{80 * '-'}", file=self._stdout)
+            self._print_header(f"Epoch {epoch + 1}/{self._n_epochs}")
 
             # Switch to training mode
             self._model.train()
@@ -295,11 +293,9 @@ class UNet2DLearner(AbstractBaseLearner):
             writer.add_scalar("average_train_loss", epoch_loss, epoch + 1)
 
             # Validation
-            if (epoch + 1) % self._validation_interval == 0:
+            if (epoch + 1) % self._validation_step == 0:
 
-                print(f"{80 * '-'}", file=self._stdout)
-                print(f"Validation", file=self._stdout)
-                print(f"{80 * '-'}", file=self._stdout)
+                self._print_header("Validation")
 
                 # Switch to evaluation mode
                 self._model.eval()
@@ -408,9 +404,7 @@ class UNet2DLearner(AbstractBaseLearner):
         """
 
         # Inform
-        print(f"{80 * '-'}", file=self._stdout)
-        print(f"Test prediction", file=self._stdout)
-        print(f"{80 * '-'}", file=self._stdout)
+        self._print_header("Test prediction")
 
         # Get the device
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -512,9 +506,7 @@ class UNet2DLearner(AbstractBaseLearner):
         @return True if the prediction was successful, False otherwise.
         """
         # Inform
-        print(f"{80 * '-'}", file=self._stdout)
-        print(f"Prediction", file=self._stdout)
-        print(f"{80 * '-'}", file=self._stdout)
+        self._print_header("Prediction")
 
         # Get the device
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -655,7 +647,8 @@ class UNet2DLearner(AbstractBaseLearner):
         self._test_image_names = test_image_names
         self._test_mask_names = test_mask_names
 
-    def _prediction_to_label_tiff_image(self, prediction):
+    @staticmethod
+    def _prediction_to_label_tiff_image(prediction):
         """Save the prediction to a label image (TIFF)"""
 
         # Convert to label image
@@ -1027,3 +1020,11 @@ class UNet2DLearner(AbstractBaseLearner):
         model_file_name = runs_dir / model_file_name
 
         return str(experiment_name), str(model_file_name)
+
+    def _print_header(self, header_text, line_length=80, file=None):
+        """Print a section header."""
+        if file is None:
+            file = self._stdout
+        print(f"{line_length * '-'}", file=file)
+        print(f"{header_text}", file=self._stdout)
+        print(f"{line_length * '-'}", file=file)

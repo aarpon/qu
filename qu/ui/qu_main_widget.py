@@ -10,10 +10,9 @@ from monai import __version__ as __monai_version__
 import sys
 
 from qu import __version__
-from qu.data.model import MaskType
 from qu.demo import get_demo_dataset
-from qu.ml.unet_2d_learner import UNet2DLearner
-from qu.ml.unet_2d_settings import UNet2DSettings
+from qu.ml import UNet2DLearner
+from qu.ml import UNet2DSettings
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataModel
@@ -499,8 +498,8 @@ class QuMainWidget(QWidget):
                 num_epochs=self._learner_settings.num_epochs,
                 batch_sizes=self._learner_settings.batch_sizes,
                 num_workers=self._learner_settings.num_workers,
-                validation_interval=self._learner_settings.validation_step,
-                sliding_window_batch_size=4,
+                validation_step=self._learner_settings.validation_step,
+                sliding_window_batch_size=self._learner_settings.sliding_window_batch_size,
                 working_dir=self._data_model.root_data_path,
                 stdout=self._out_stream,
                 stderr=self._err_stream
