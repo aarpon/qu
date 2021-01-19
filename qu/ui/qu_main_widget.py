@@ -3,14 +3,14 @@ from pathlib import Path
 import torch
 from PyQt5 import uic, QtGui
 from PyQt5.QtCore import pyqtSlot, QThreadPool
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtWidgets import QWidget, QFileDialog, QAction, QMessageBox
 from torch import __version__ as __torch_version__
 from monai import __version__ as __monai_version__
 import sys
 
 from qu import __version__
-from qu.demo import get_demo_dataset
+from qu.demo import get_demo_segmentation_dataset
 from qu.ml import UNet2DLearner
 from qu.ml import UNet2DSettings
 from qu.ui import _ui_folder_path
@@ -107,13 +107,23 @@ class QuMainWidget(QWidget):
 
         # Save mask
         save_mask_action = QAction(QIcon(":/icons/save.png"), "Save mask", self)
+        save_mask_action.setShortcut(QKeySequence("Ctrl+Alt+S"))
         save_mask_action.triggered.connect(self._on_qu_save_mask_action)
         curation_menu.addAction(save_mask_action)
 
         # Reload mask
         reload_mask_action = QAction(QIcon(":/icons/revert.png"), "Reload mask", self)
+        reload_mask_action.setShortcut(QKeySequence("Ctrl+Alt+Z"))
         reload_mask_action.triggered.connect(self._on_qu_reload_mask_action)
         curation_menu.addAction(reload_mask_action)
+
+        # Add separator
+        curation_menu.addSeparator()
+
+        # Save mask
+        save_all_mask_action = QAction(QIcon(":/icons/save.png"), "Save all masks", self)
+        save_all_mask_action.triggered.connect(self._on_qu_save_all_masks_action)
+        curation_menu.addAction(save_all_mask_action)
 
         # Add separator
         qu_menu.addSeparator()
@@ -128,10 +138,13 @@ class QuMainWidget(QWidget):
         # Add separator
         qu_menu.addSeparator()
 
+        # Add demos menu
+        demos_menu = qu_menu.addMenu("Demos")
+
         # Add get demo
-        demo_action = QAction(QIcon(":/icons/download.png"), "Demo dataset", self)
-        demo_action.triggered.connect(self._on_qu_demo_action)
-        qu_menu.addAction(demo_action)
+        demo_segmentation_action = QAction(QIcon(":/icons/download.png"), "Demo segmentation dataset", self)
+        demo_segmentation_action.triggered.connect(self._on_qu_demo_segmentation_action)
+        demos_menu.addAction(demo_segmentation_action)
 
         # Add help action
         help_action = QAction(QIcon(":/icons/help.png"), "Help", self)
@@ -181,7 +194,7 @@ class QuMainWidget(QWidget):
         """Display current image and mask."""
 
         # Get current data (if there is any)
-        image, mask = self._data_model.get_data_at_current_index()
+        image, mask = self._data_model.get_image_and_mask_at_current_index()
         if image is None:
             self._update_data_selector()
             return
@@ -549,23 +562,43 @@ class QuMainWidget(QWidget):
         """Qu save mask action."""
 
         # Save current mask
-        if not self._data_model.save_mask_at_current_index():
+        if self._data_model.save_mask_at_current_index():
+            print(f"Current mask saved.", file=self._out_stream)
+        else:
             print(self._data_model.last_error_message, file=self._err_stream)
+
 
     @pyqtSlot(name="_on_qu_reload_mask_action")
     def _on_qu_reload_mask_action(self):
         """Qu reload mask action."""
 
         # Reload mask
-        if not self._data_model.reload_mask_at_current_index():
+        if self._data_model.reload_mask_at_current_index():
+            print(f"Current mask reloaded.", file=self._out_stream)
+        else:
             print(self._data_model.last_error_message, file=self._err_stream)
 
         # Update the display
         self.display()
 
-    @pyqtSlot(name="_on_qu_demo_action")
-    def _on_qu_demo_action(self):
-        """Qu demo action."""
+    @pyqtSlot(name="_on_qu_save_all_masks_action")
+    def _on_qu_save_all_masks_action(self):
+        """Qu save all masks action."""
+
+        # Are there masks loaded?
+        if self._data_model.num_masks == 0:
+            return
+
+        # Save all cached (i.e. potentially modified) masks
+        if self._data_model.save_all_cached_masks():
+            print("Saving completed.", file=self._out_stream)
+        else:
+            print(self._data_model.last_error_message, file=self._err_stream)
+
+
+    @pyqtSlot(name="_on_qu_demo_segmentation_action")
+    def _on_qu_demo_segmentation_action(self):
+        """Qu segmentation demo action."""
 
         # Check whether we already have data loaded
         if self._data_model.num_images > 0:
@@ -585,10 +618,10 @@ class QuMainWidget(QWidget):
         print("If needed, download and extract demo data.", file=self._out_stream)
 
         # Get the data
-        demo_dataset_path = get_demo_dataset()
+        demo_dataset_path = get_demo_segmentation_dataset()
 
         # Inform
-        print("Open demo dataset.", file=self._out_stream)
+        print("Opening demo dataset.", file=self._out_stream)
 
         # Set the path in the DataModel
         self._data_model.root_data_path = demo_dataset_path
@@ -624,6 +657,10 @@ class QuMainWidget(QWidget):
 
         # Display current data
         self.display()
+
+        # Inform
+        print("Demo dataset opened.", file=self._out_stream)
+
 
     @pyqtSlot(name="_on_qu_help_action")
     def _on_qu_help_action(self):

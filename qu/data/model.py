@@ -142,7 +142,7 @@ class DataModel:
         if self._num_channels == 0:
             if self.num_channels > 0:
                 # Force scanning
-                _ = self._get_or_load_mask()
+                _ = self.get_or_load_mask_at_current_index()
         return self._num_channels
 
     @property
@@ -151,7 +151,7 @@ class DataModel:
         if self._num_classes == 0:
             if self.num_images > 0:
                 # Force scanning
-                _ = self._get_or_load_mask()
+                _ = self.get_or_load_mask_at_current_index()
             else:
                 raise Exception("No images found!")
         return self._num_classes
@@ -165,7 +165,7 @@ class DataModel:
         if self._mask_type == MaskType.UNKNOWN:
             if self.num_images > 0:
                 # Force scanning
-                _ = self._get_or_load_mask()
+                _ = self.get_or_load_mask_at_current_index()
             else:
                 raise Exception("No masks found!")
         return self._mask_type
@@ -428,170 +428,41 @@ class DataModel:
         # Return
         return train_image_names, train_mask_names, val_image_names, val_mask_names, test_image_names, test_mask_names
 
-    def get_data_at_current_index(self) -> Tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
+    def get_image_and_mask_at_current_index(self) -> Tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
         """Retrieve image and mask data for current index."""
 
         if len(self._image_names) == 0:
             return None, None
 
         # Get the image
-        img = self._get_or_load_image()
+        img = self.get_or_load_image_at_current_index()
 
         # Get the mask
-        mask = self._get_or_load_mask()
+        mask = self.get_or_load_mask_at_current_index()
 
         # Return
         return img, mask
 
-    def save_mask_at_current_index(self):
-        """Save mask at current index based on the stored type.
-
-        In case of failure, the last_error_message property contains
-        the error message.
-
-        @return True is saving was successful, False otherwise.
-        """
-
-        # Are there any masks?
-        if self.num_masks == 0:
-
-            # Set the error message
-            self._error_message = 'No masks loaded.'
-
-            # Return failure
-            return False
-
-        # Get the mask
-        mask = self._get_or_load_mask()
-
-        if mask is None:
-            # The error message is already set
-            return False
-
-        # Get the mask name
-        mask_file_name = self._mask_names[self._index]
-
-        # Save depending on the mask type
-        if self._mask_type == MaskType.UNKNOWN:
-
-            # Set the error message
-            self._error_message = 'Unknown mask type. Cannot save.'
-
-            # Return failure
-            return False
-
-        elif self._mask_type == MaskType.TIFF_LABELS:
-
-            # Save as 32bit tiff
-            try:
-                imsave(mask_file_name, mask)
-            except Exception as e:
-
-                # Set the error message
-                self._error_message = str(e)
-
-                # Return failure
-                return False
-
-        elif self._mask_type == MaskType.NUMPY_LABELS:
-
-            # Save 2D numpy array
-            try:
-                np.save(mask_file_name, mask)
-            except Exception as e:
-
-                # Set the error message
-                self._error_message = str(e)
-
-                # Return failure
-                return False
-
-        elif self._mask_type == MaskType.NUMPY_ONE_HOT:
-
-            # Change into a one-hot stack image (for saving)
-            one_hot_mask = label_image_to_one_hot_stack(
-                mask,
-                num_classes=self._num_classes,
-                channels_first=True,
-                dtype=np.int32
-            )
-
-            # Save 3D one-hot numpy array
-            try:
-                np.save(mask_file_name, one_hot_mask)
-            except Exception as e:
-
-                # Set the error message
-                self._error_message = str(e)
-
-                # Return failure
-                return False
-
-        elif self._mask_type == MaskType.H5_ONE_HOT:
-
-            # Change into a one-hot stack image (for saving)
-            one_hot_mask = label_image_to_one_hot_stack(
-                mask,
-                num_classes=self._num_classes,
-                channels_first=True,
-                dtype=np.int32
-            )
-
-            # Save 3D one-hot HDF5 array
-            try:
-                mask_file = h5py.File(mask_file_name, 'r+')
-            except OSError as e:
-                # Set the error message
-                self._error_message = str(e)
-
-                # Return failure
-                return False
-
-            # Get the dataset
-            datasets = list(mask_file.keys())
-            if len(datasets) != 1:
-                # Set the error message
-                self._error_message = f"Unexpected number of datasets in file {mask_file_name}"
-
-                # Return failure
-                return False
-
-            # Dataset name
-            dataset = datasets[0]
-
-            # Replace the dataset
-            mask_file[dataset][...] = one_hot_mask
-
-            # Close the HDF5 file
-            mask_file.close()
-
-        else:
-
-            # Set the error message
-            self._error_message = f"Unknown mask type!"
-
-            # Return failure
-            return False
-
-        # Return success
-        return True
-
-    def _get_or_load_image(self):
+    def get_or_load_image_at_current_index(self):
         """Get current image from cache or load it."""
+        return self.get_or_load_image_at_index(self._index)
+
+    def get_or_load_image_at_index(self, index: int):
+        """Get image for requested index from cache or load it."""
 
         img = None
 
-        if self._index in self._images:
-            img = self._images[self._index]
+        if index in self._images:
+            img = self._images[index]
         else:
             # Load it
-            if self._index < len(self._image_names):
-                image_file_name = self._image_names[self._index]
+            if index < len(self._image_names):
+                image_file_name = self._image_names[index]
                 if image_file_name is not None:
                     img = imread(image_file_name)
 
                 # Add it to the cache
-                self._images[self._index] = img
+                self._images[index] = img
 
         if self._num_channels == 0:
             if img.ndim == 2:
@@ -601,7 +472,7 @@ class DataModel:
 
         return img
 
-    def _get_or_load_mask(self):
+    def get_or_load_mask_at_current_index(self):
         """Get current mask from cache or load it.
 
         In case of failure, the last_error_message property contains
@@ -609,15 +480,27 @@ class DataModel:
 
         @return the mask if it could be loaded properly, None otherwise.
         """
+        return self.get_or_load_mask_at_index(self._index)
+
+    def get_or_load_mask_at_index(self, index: int):
+        """Get mask for requested index from cache or load it.
+
+        In case of failure, the last_error_message property contains
+        the error message.
+
+        @param index: Index of the mask to get or load.
+
+        @return the mask if it could be loaded properly, None otherwise.
+        """
 
         mask = None
 
-        if self._index in self._masks:
-            mask = self._masks[self._index]
+        if index in self._masks:
+            mask = self._masks[index]
         else:
             # Load it
-            if self._index < len(self._mask_names):
-                mask_file_name = self._mask_names[self._index]
+            if index < len(self._mask_names):
+                mask_file_name = self._mask_names[index]
                 if mask_file_name is not None:
 
                     # What is the file type?
@@ -742,7 +625,7 @@ class DataModel:
                     mask = mask.astype(np.int32)
 
                     # Add it to the cache
-                    self._masks[self._index] = mask
+                    self._masks[index] = mask
 
         return mask
 
@@ -762,7 +645,7 @@ class DataModel:
             del self._masks[self._index]
 
         # Reload
-        if self._get_or_load_mask() is None:
+        if self.get_or_load_mask_at_current_index() is None:
             # Set error message
             self._error_message = "Could not reload mask."
 
@@ -771,3 +654,187 @@ class DataModel:
 
         # Return success
         return True
+
+    def save_mask_at_current_index(self):
+        """Save mask at current index based on the stored type.
+
+        In case of failure, the last_error_message property contains
+        the error message.
+
+        @return True is saving was successful, False otherwise.
+        """
+        return self.save_mask_at_index(self._index)
+
+    def save_mask_at_index(self, index: int):
+        """Save cached mask at requested index based on the stored type.
+
+        If the mask at given index is not in the cache, it is
+        already saved to file (or was never loaded) and no operation
+        is performed. The method returns success anyway, since this
+        is valid behavior.
+
+        In case of a real saving failure, the last_error_message property
+        contains the error message.
+
+        @param index: Index of the mask to save.
+
+        @return True is saving was successful, False otherwise.
+        """
+
+        # Are there any masks?
+        if self.num_masks == 0:
+
+            # Set the error message
+            self._error_message = 'No masks loaded.'
+
+            # Return failure
+            return False
+
+        # Is the mask in the cache? If not, we stop here.
+        if index not in self._masks:
+            return True
+
+        # Get the mask from cache only
+        mask = self._masks[index]
+
+        # Get the mask name
+        mask_file_name = self._mask_names[index]
+
+        # Save depending on the mask type
+        if self._mask_type == MaskType.UNKNOWN:
+
+            # Set the error message
+            self._error_message = 'Unknown mask type. Cannot save.'
+
+            # Return failure
+            return False
+
+        elif self._mask_type == MaskType.TIFF_LABELS:
+
+            # Save as 32bit tiff
+            try:
+                imsave(mask_file_name, mask)
+            except Exception as e:
+
+                # Set the error message
+                self._error_message = str(e)
+
+                # Return failure
+                return False
+
+        elif self._mask_type == MaskType.NUMPY_LABELS:
+
+            # Save 2D numpy array
+            try:
+                np.save(mask_file_name, mask)
+            except Exception as e:
+
+                # Set the error message
+                self._error_message = str(e)
+
+                # Return failure
+                return False
+
+        elif self._mask_type == MaskType.NUMPY_ONE_HOT:
+
+            # Change into a one-hot stack image (for saving)
+            one_hot_mask = label_image_to_one_hot_stack(
+                mask,
+                num_classes=self._num_classes,
+                channels_first=True,
+                dtype=np.int32
+            )
+
+            # Save 3D one-hot numpy array
+            try:
+                np.save(mask_file_name, one_hot_mask)
+            except Exception as e:
+
+                # Set the error message
+                self._error_message = str(e)
+
+                # Return failure
+                return False
+
+        elif self._mask_type == MaskType.H5_ONE_HOT:
+
+            # Change into a one-hot stack image (for saving)
+            one_hot_mask = label_image_to_one_hot_stack(
+                mask,
+                num_classes=self._num_classes,
+                channels_first=True,
+                dtype=np.int32
+            )
+
+            # Save 3D one-hot HDF5 array
+            try:
+                mask_file = h5py.File(mask_file_name, 'r+')
+            except OSError as e:
+                # Set the error message
+                self._error_message = str(e)
+
+                # Return failure
+                return False
+
+            # Get the dataset
+            datasets = list(mask_file.keys())
+            if len(datasets) != 1:
+                # Set the error message
+                self._error_message = f"Unexpected number of datasets in file {mask_file_name}"
+
+                # Return failure
+                return False
+
+            # Dataset name
+            dataset = datasets[0]
+
+            # Replace the dataset
+            mask_file[dataset][...] = one_hot_mask
+
+            # Close the HDF5 file
+            mask_file.close()
+
+        else:
+
+            # Set the error message
+            self._error_message = f"Unknown mask type!"
+
+            # Return failure
+            return False
+
+        # Return success
+        return True
+
+    def save_all_cached_masks(self):
+        """Save all cached masks.
+
+        The assumption is that if a mask has been loaded and
+        cached, it may have been modified.
+
+        If saving a mask fails, the process will continue saving
+        the others. In this case, however, the method will return
+        False, and the last error message will contain a list of
+        masks that failed to save.
+
+        @TODO: Find a way to query the mask for modifications.
+
+        @return True if saving was successful, False otherwise.
+
+        """
+
+        # If there are no masks, return success.
+        if self.num_masks == 0:
+            return True
+
+        failed_masks = []
+        success = True
+        for index in range(self.num_masks):
+            if not self.save_mask_at_index(index):
+                success = False
+                failed_masks.append(self._mask_names[index])
+
+        if not success:
+            self._error_message = "The following masks could not be saved:\n" + \
+                                  '\n'.join(map(str, failed_masks))
+
+        return success
