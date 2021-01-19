@@ -2,6 +2,8 @@
 
 Qu is an attempt to make the full deep learning workflow more interactive by providing a user interface (implemented as napari widget) that abstracts all steps from ground truth generation and curation to training and prediction. 
 
+![Qu](images/qu.png)
+
 Qu is released under the terms of the Apache License version 2.0 (see LICENSE.txt). All libraries used by Qu have their own licenses.
 
 ## Installation
