@@ -1,6 +1,8 @@
 # Qu
 
-Qu is an attempt to make the full deep learning workflow more interactive by providing a user interface (implemented as napari widget) that abstracts all steps from ground truth generation and curation to training and prediction. 
+Qu is an attempt to make the full deep learning workflow more interactive by providing a user interface that abstracts all steps from ground truth generation and curation to training and prediction. 
+
+Qu is implemented as a widget for the great [napari](https://napari.org/) multi-dimensional image viewer for python.
 
 ![Qu](images/qu.png)
 
@@ -25,3 +27,18 @@ cd qu
 conda create -n qu --file conda-{platform}.lock
 conda activate qu
 ```
+
+## Getting started
+
+Start Qu by changing to the repository root and typing:
+
+```bash
+python main.py
+```
+
+From the `Qu > Demos` menu, choose `Demo segmentation dataset`. 
+
+## User manual
+
+Detailed instructions will follow soon.
+
