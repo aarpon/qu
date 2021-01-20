@@ -613,7 +613,7 @@ class QuMainWidget(QWidget):
             self._tensorboard_process = QProcess()
             self._tensorboard_process.readyReadStandardError.connect(self.handle_qprocess_stderr)
             self._tensorboard_process.readyReadStandardOutput.connect(self.handle_qprocess_stdout)
-            self._tensorboard_process.start("tensorboard", [f"--logdir={self._data_model.root_data_path}/runs"])
+            self._tensorboard_process.start("tensorboard", [f"--logdir={self._data_model.root_data_path}"])
             self._tensorboard_process.started.connect(self._on_open_tensorboard_in_browser)
         else:
             # Tensorboard is already running, just open the browser
