@@ -35,7 +35,7 @@ def get_demo_segmentation_dataset():
     # Is the zip archive already present?
     archive_found = False
     if (data_folder / "demo_segmentation.zip").is_file():
-        if (data_folder / "demo_segmentation.zip").stat().st_size == 81409292:
+        if (data_folder / "demo_segmentation.zip").stat().st_size == 81367923:
             archive_found = True
         else:
             (data_folder / "demo_segmentation.zip").unlink()
