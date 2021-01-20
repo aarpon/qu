@@ -30,8 +30,8 @@ from qu.ml.abstract_base_learner import AbstractBaseLearner
 from qu.transform import one_hot_stack_to_label_image
 
 
-class UNet2DLearner(AbstractBaseLearner):
-    """Learner that used U-Net as worker."""
+class UNet2DSegmenter(AbstractBaseLearner):
+    """Segmenter based on the U-Net architecture."""
 
     def __init__(
             self,

@@ -1,2 +1,2 @@
-from .unet_2d_learner import UNet2DLearner
-from .unet_2d_settings import UNet2DSettings
+from .unet_2d_segmenter import UNet2DSegmenter
+from .unet_2d_segmenter_settings import UNet2DSegmenterSettings

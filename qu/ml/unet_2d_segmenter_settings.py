@@ -4,8 +4,8 @@ from typing import Tuple
 
 
 @dataclass
-class UNet2DSettings:
-    """Settings for the UNet learner."""
+class UNet2DSegmenterSettings:
+    """Settings for the UNet segmenter."""
 
     # Number of epochs
     num_epochs: int = 10

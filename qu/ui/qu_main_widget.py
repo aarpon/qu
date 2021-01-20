@@ -2,8 +2,8 @@ from pathlib import Path
 
 import torch
 from PyQt5 import uic, QtGui
-from PyQt5.QtCore import pyqtSlot, QThreadPool
-from PyQt5.QtGui import QIcon, QKeySequence
+from PyQt5.QtCore import pyqtSlot, QThreadPool, QProcess, QUrl
+from PyQt5.QtGui import QIcon, QKeySequence, QDesktopServices
 from PyQt5.QtWidgets import QWidget, QFileDialog, QAction, QMessageBox
 from torch import __version__ as __torch_version__
 from monai import __version__ as __monai_version__
@@ -11,8 +11,8 @@ import sys
 
 from qu import __version__
 from qu.demo import get_demo_segmentation_dataset
-from qu.ml import UNet2DLearner
-from qu.ml import UNet2DSettings
+from qu.ml import UNet2DSegmenter
+from qu.ml import UNet2DSegmenterSettings
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataModel
@@ -62,11 +62,14 @@ class QuMainWidget(QWidget):
         # Keep a reference to the learner
         self._learner = None
 
-        # Keep a reference to the settings for the learner (defaults to UNet2DSettings)
-        self._learner_settings = UNet2DSettings()
+        # Keep a reference to the settings for the learner (defaults to UNet2DSegmenterSettings)
+        self._learner_settings = UNet2DSegmenterSettings()
 
         # Dock it
         viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
+
+        # Tensorboard process
+        self._tensorboard_process = None
 
         # Test redirection to output
         print(f"Welcome to Qu {__version__}.", file=self._out_stream)
@@ -132,7 +135,8 @@ class QuMainWidget(QWidget):
         tools_menu = qu_menu.addMenu("Tools")
 
         # Add placeholder for now
-        launch_tensorboard_action = QAction("Launch tensorboard (will follow)", self)
+        launch_tensorboard_action = QAction("Launch tensorboard", self)
+        launch_tensorboard_action.triggered.connect(self._on_launch_tensorboard_action)
         tools_menu.addAction(launch_tensorboard_action)
 
         # Add separator
@@ -503,7 +507,7 @@ class QuMainWidget(QWidget):
 
         # Instantiate the requested learner
         if arch == 0:
-            self._learner = UNet2DLearner(
+            self._learner = UNet2DSegmenter(
                 self._data_model.mask_type,
                 in_channels=self._data_model.num_channels,
                 out_channels=self._data_model.num_classes,
@@ -595,6 +599,47 @@ class QuMainWidget(QWidget):
         else:
             print(self._data_model.last_error_message, file=self._err_stream)
 
+    @pyqtSlot(name="_on_launch_tensorboard_action")
+    def _on_launch_tensorboard_action(self):
+        """Launch tensorboard action."""
+
+        if self._data_model.root_data_path == "":
+            print("Select a data folder first.", file=self._err_stream)
+            return
+
+        # Check if tensorboard needs to be started
+        if self._tensorboard_process is None:
+            # It tensorboard is not running, start it and then open the system browser
+            self._tensorboard_process = QProcess()
+            self._tensorboard_process.readyReadStandardError.connect(self.handle_qprocess_stderr)
+            self._tensorboard_process.readyReadStandardOutput.connect(self.handle_qprocess_stdout)
+            self._tensorboard_process.start("tensorboard", [f"--logdir={self._data_model.root_data_path}/runs"])
+            self._tensorboard_process.started.connect(self._on_open_tensorboard_in_browser)
+        else:
+            # Tensorboard is already running, just open the browser
+            self._on_open_tensorboard_in_browser()
+
+    @pyqtSlot(name="handle_qprocess_stderr")
+    def handle_qprocess_stderr(self):
+        if self._tensorboard_process is None:
+            return
+        data = self._tensorboard_process.readAllStandardError()
+        message = bytes(data).decode("utf8")
+        print(message, file=self._err_stream)
+
+    @pyqtSlot(name="handle_qprocess_stdout")
+    def handle_qprocess_stdout(self):
+        if self._tensorboard_process is None:
+            return
+        data = self._tensorboard_process.readAllStandardOutput()
+        message = bytes(data).decode("utf8")
+        print(message, file=self._out_stream)
+
+    @pyqtSlot(name="_on_open_tensorboard_in_browser")
+    def _on_open_tensorboard_in_browser(self):
+        """Open tensorboard in browser action."""
+        url = QUrl("http://localhost:6006/")
+        QDesktopServices.openUrl(url)
 
     @pyqtSlot(name="_on_qu_demo_segmentation_action")
     def _on_qu_demo_segmentation_action(self):
