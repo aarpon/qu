@@ -569,12 +569,6 @@ class UNet2DLearner(AbstractBaseLearner):
                 basename = os.path.splitext(os.path.basename(self._prediction_image_names[indx]))[0]
                 basename = "pred_" + basename
 
-                # Save prediction as npy file
-                pred_file_name = os.path.join(
-                    str(target_folder),
-                    basename + '.npy')
-                np.save(pred_file_name, pred)
-
                 # Convert to label image
                 label_img = self._prediction_to_label_tiff_image(pred)
 
@@ -586,7 +580,7 @@ class UNet2DLearner(AbstractBaseLearner):
                     tif.save(label_img)
 
                 # Inform
-                print(f"Saved {str(target_folder)}/({basename}.npy, {basename}.tif)", file=self._stdout)
+                print(f"Saved {str(target_folder)}/{basename}.tif", file=self._stdout)
 
                 # Update the index
                 indx += 1
