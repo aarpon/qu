@@ -3,7 +3,7 @@ from monai.transforms import Transform
 import numpy as np
 from tifffile import imread
 
-from qu.data.model import MaskType
+from qu.data.manager import MaskType
 from qu.transform.transform import label_image_to_one_hot_stack
 
 

@@ -15,7 +15,7 @@ from qu.ml import UNet2DSegmenter
 from qu.ml import UNet2DSegmenterSettings
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
-from qu.data import DataModel
+from qu.data import DataManager
 from qu.ui.qu_logger_widget import QuLoggerWidget
 from qu.ui.qu_unet_settings_dialog import QuUNetSettingsDialog
 from qu.ui.threads import LearnerManager, PredictorManager
@@ -56,8 +56,8 @@ class QuMainWidget(QWidget):
         # Set the connections
         self._set_connections()
 
-        # Initialize data model
-        self._data_model = DataModel()
+        # Initialize data manager
+        self._data_manager = DataManager()
 
         # Keep a reference to the learner
         self._learner = None
@@ -183,22 +183,22 @@ class QuMainWidget(QWidget):
         """Update data selector (slider)."""
 
         # Update the slider
-        if self._data_model.num_images == 0:
+        if self._data_manager.num_images == 0:
             self.hsImageSelector.setMinimum(0)
             self.hsImageSelector.setMaximum(0)
             self.hsImageSelector.setValue(0)
             self.hsImageSelector.setEnabled(False)
         else:
             self.hsImageSelector.setMinimum(0)
-            self.hsImageSelector.setMaximum(self._data_model.num_images - 1)
-            self.hsImageSelector.setValue(self._data_model.index)
+            self.hsImageSelector.setMaximum(self._data_manager.num_images - 1)
+            self.hsImageSelector.setValue(self._data_manager.index)
             self.hsImageSelector.setEnabled(True)
 
     def display(self) -> None:
         """Display current image and mask."""
 
         # Get current data (if there is any)
-        image, mask = self._data_model.get_image_and_mask_at_current_index()
+        image, mask = self._data_manager.get_image_and_mask_at_current_index()
         if image is None:
             self._update_data_selector()
             return
@@ -226,7 +226,7 @@ class QuMainWidget(QWidget):
 
         training_total = int(100 * training_fraction)
         validation_total = int(100 * validation_fraction)
-        training_total_str = f"Training ({training_total}% of {self._data_model.num_images})"
+        training_total_str = f"Training ({training_total}% of {self._data_manager.num_images})"
         validation_total_str = f"Validation:Test ({validation_total}%)"
         num_training_images = f"{num_train} training images."
         num_val_test_images = f"{num_val}:{num_test} val:test images."
@@ -255,7 +255,7 @@ class QuMainWidget(QWidget):
         """Ask the user to pick a data folder."""
 
         # Check whether we already have data loaded
-        if self._data_model.num_images > 0:
+        if self._data_manager.num_images > 0:
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Question)
             msg.setText("Are you sure you want to discard current data?")
@@ -266,7 +266,7 @@ class QuMainWidget(QWidget):
                 return
 
             # Reset current model
-            self._data_model.reset()
+            self._data_manager.reset()
 
         # Ask the user to pick a folder
         output_dir = QFileDialog.getExistingDirectory(
@@ -277,18 +277,18 @@ class QuMainWidget(QWidget):
             # The user cancelled the selection
             return
 
-        # Set the path in the DataModel
-        self._data_model.root_data_path = output_dir
+        # Set the path in the DataManager
+        self._data_manager.root_data_path = output_dir
 
         # Retrieve the (parsed) root data path
-        root_data_path = self._data_model.root_data_path
+        root_data_path = self._data_manager.root_data_path
 
         # Update the button
         self.pBSelectDataRootFolder.setText(str(root_data_path))
 
         # Scan the data folder
         try:
-            self._data_model.scan()
+            self._data_manager.scan()
         except FileNotFoundError as fe:
             print(f"Error: {fe}", file=self._err_stream)
             return
@@ -300,10 +300,10 @@ class QuMainWidget(QWidget):
         self._update_data_selector()
 
         # Update the training/validation/test split sliders
-        num_train, num_val, num_test = self._data_model.preview_training_split()
+        num_train, num_val, num_test = self._data_manager.preview_training_split()
         self._update_training_ui_elements(
-            self._data_model.training_fraction,
-            self._data_model.validation_fraction,
+            self._data_manager.training_fraction,
+            self._data_manager.validation_fraction,
             num_train,
             num_val,
             num_test
@@ -319,9 +319,9 @@ class QuMainWidget(QWidget):
         # Instantiate the manager
         predictorManager = PredictorManager(
             self._learner,
-            self._data_model.prediction_input_path,
-            self._data_model.prediction_target_path,
-            self._data_model.model_path
+            self._data_manager.prediction_input_path,
+            self._data_manager.prediction_target_path,
+            self._data_manager.model_path
         )
 
         # Run the training in a separate Qt thread
@@ -344,11 +344,11 @@ class QuMainWidget(QWidget):
             # The user cancelled the selection
             return
 
-        # Set the path in the DataModel
-        self._data_model.prediction_input_path = input_dir
+        # Set the path in the DataManager
+        self._data_manager.prediction_input_path = input_dir
 
         # Retrieve the (parsed) input prediction path
-        prediction_input_path = self._data_model.prediction_input_path
+        prediction_input_path = self._data_manager.prediction_input_path
 
         # Update the button
         self.pbSelectPredictionDataFolder.setText(str(prediction_input_path))
@@ -368,11 +368,11 @@ class QuMainWidget(QWidget):
             # The user cancelled the selection
             return
 
-        # Set the path in the DataModel
-        self._data_model.model_path = model_file[0]
+        # Set the path in the DataManager
+        self._data_manager.model_path = model_file[0]
 
         # Retrieve the (parsed) model file path
-        model_path = self._data_model.model_path
+        model_path = self._data_manager.model_path
 
         # Update the button
         self.pbSelectPredictionModelFile.setText(str(model_path))
@@ -390,11 +390,11 @@ class QuMainWidget(QWidget):
             # The user cancelled the selection
             return
 
-        # Set the path in the DataModel
-        self._data_model.prediction_target_path = target_dir
+        # Set the path in the DataManager
+        self._data_manager.prediction_target_path = target_dir
 
         # Retrieve the (parsed) target prediction path
-        prediction_target_path = self._data_model.prediction_target_path
+        prediction_target_path = self._data_manager.prediction_target_path
 
         # Update the button
         self.pbSelectPredictionTargetFolder.setText(str(prediction_target_path))
@@ -433,8 +433,8 @@ class QuMainWidget(QWidget):
         moved, but only at the end of the movement!
         """
 
-        # Update the index in the data model
-        self._data_model.index = value
+        # Update the index in the data manager
+        self._data_manager.index = value
 
         # Update the display
         self.display()
@@ -446,16 +446,16 @@ class QuMainWidget(QWidget):
     def _on_train_val_split_selector_value_changed(self, value):
         """Recalculate splits and update UI elements."""
 
-        # Update the training fraction in the data model
-        self._data_model.training_fraction = float(value) / 100.0
+        # Update the training fraction in the data manager
+        self._data_manager.training_fraction = float(value) / 100.0
 
         # Recalculate splits
-        num_train, num_val, num_test = self._data_model.preview_training_split()
+        num_train, num_val, num_test = self._data_manager.preview_training_split()
 
         # Update UI elements
         self._update_training_ui_elements(
-            self._data_model.training_fraction,
-            self._data_model.validation_fraction,
+            self._data_manager.training_fraction,
+            self._data_manager.validation_fraction,
             num_train,
             num_val,
             num_test
@@ -465,16 +465,16 @@ class QuMainWidget(QWidget):
     def _on_val_test_split_selector_value_changed(self, value):
         """Recalculate splits and update UI elements."""
 
-        # Update the validation fraction in the data model
-        self._data_model.validation_fraction = float(value) / 100.0
+        # Update the validation fraction in the data manager
+        self._data_manager.validation_fraction = float(value) / 100.0
 
         # Recalculate splits
-        num_train, num_val, num_test = self._data_model.preview_training_split()
+        num_train, num_val, num_test = self._data_manager.preview_training_split()
 
         # Update UI elements
         self._update_training_ui_elements(
-            self._data_model.training_fraction,
-            self._data_model.validation_fraction,
+            self._data_manager.training_fraction,
+            self._data_manager.validation_fraction,
             num_train,
             num_val,
             num_test
@@ -498,7 +498,7 @@ class QuMainWidget(QWidget):
         """Instantiate the Learner (if needed) and run the training."""
 
         # Is there data to train on?
-        if self._data_model.num_images == 0:
+        if self._data_manager.num_images == 0:
             print("Training: please load a dataset first!", file=self._err_stream)
             return
 
@@ -508,16 +508,16 @@ class QuMainWidget(QWidget):
         # Instantiate the requested learner
         if arch == 0:
             self._learner = UNet2DSegmenter(
-                self._data_model.mask_type,
-                in_channels=self._data_model.num_channels,
-                out_channels=self._data_model.num_classes,
+                self._data_manager.mask_type,
+                in_channels=self._data_manager.num_channels,
+                out_channels=self._data_manager.num_classes,
                 roi_size=self._learner_settings.roi_size,
                 num_epochs=self._learner_settings.num_epochs,
                 batch_sizes=self._learner_settings.batch_sizes,
                 num_workers=self._learner_settings.num_workers,
                 validation_step=self._learner_settings.validation_step,
                 sliding_window_batch_size=self._learner_settings.sliding_window_batch_size,
-                working_dir=self._data_model.root_data_path,
+                working_dir=self._data_manager.root_data_path,
                 stdout=self._out_stream,
                 stderr=self._err_stream
             )
@@ -526,7 +526,7 @@ class QuMainWidget(QWidget):
         try:
             train_image_names, train_mask_names, \
                 val_image_names, val_mask_names, \
-                test_image_names, test_mask_names = self._data_model.training_split()
+                test_image_names, test_mask_names = self._data_manager.training_split()
         except ValueError as e:
             print(f"Error: {str(e)}. Aborting...", file=self._err_stream)
             return
@@ -566,10 +566,10 @@ class QuMainWidget(QWidget):
         """Qu save mask action."""
 
         # Save current mask
-        if self._data_model.save_mask_at_current_index():
+        if self._data_manager.save_mask_at_current_index():
             print(f"Current mask saved.", file=self._out_stream)
         else:
-            print(self._data_model.last_error_message, file=self._err_stream)
+            print(self._data_manager.last_error_message, file=self._err_stream)
 
 
     @pyqtSlot(name="_on_qu_reload_mask_action")
@@ -577,10 +577,10 @@ class QuMainWidget(QWidget):
         """Qu reload mask action."""
 
         # Reload mask
-        if self._data_model.reload_mask_at_current_index():
+        if self._data_manager.reload_mask_at_current_index():
             print(f"Current mask reloaded.", file=self._out_stream)
         else:
-            print(self._data_model.last_error_message, file=self._err_stream)
+            print(self._data_manager.last_error_message, file=self._err_stream)
 
         # Update the display
         self.display()
@@ -590,20 +590,20 @@ class QuMainWidget(QWidget):
         """Qu save all masks action."""
 
         # Are there masks loaded?
-        if self._data_model.num_masks == 0:
+        if self._data_manager.num_masks == 0:
             return
 
         # Save all cached (i.e. potentially modified) masks
-        if self._data_model.save_all_cached_masks():
+        if self._data_manager.save_all_cached_masks():
             print("Saving completed.", file=self._out_stream)
         else:
-            print(self._data_model.last_error_message, file=self._err_stream)
+            print(self._data_manager.last_error_message, file=self._err_stream)
 
     @pyqtSlot(name="_on_launch_tensorboard_action")
     def _on_launch_tensorboard_action(self):
         """Launch tensorboard action."""
 
-        if self._data_model.root_data_path == "":
+        if self._data_manager.root_data_path == "":
             print("Select a data folder first.", file=self._err_stream)
             return
 
@@ -613,7 +613,7 @@ class QuMainWidget(QWidget):
             self._tensorboard_process = QProcess()
             self._tensorboard_process.readyReadStandardError.connect(self.handle_qprocess_stderr)
             self._tensorboard_process.readyReadStandardOutput.connect(self.handle_qprocess_stdout)
-            self._tensorboard_process.start("tensorboard", [f"--logdir={self._data_model.root_data_path}"])
+            self._tensorboard_process.start("tensorboard", [f"--logdir={self._data_manager.root_data_path}"])
             self._tensorboard_process.started.connect(self._on_open_tensorboard_in_browser)
         else:
             # Tensorboard is already running, just open the browser
@@ -646,7 +646,7 @@ class QuMainWidget(QWidget):
         """Qu segmentation demo action."""
 
         # Check whether we already have data loaded
-        if self._data_model.num_images > 0:
+        if self._data_manager.num_images > 0:
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Question)
             msg.setText("Are you sure you want to discard current data?")
@@ -657,7 +657,7 @@ class QuMainWidget(QWidget):
                 return
 
             # Reset current model
-            self._data_model.reset()
+            self._data_manager.reset()
 
         # Inform
         print("If needed, download and extract demo data.", file=self._out_stream)
@@ -668,18 +668,18 @@ class QuMainWidget(QWidget):
         # Inform
         print("Opening demo dataset.", file=self._out_stream)
 
-        # Set the path in the DataModel
-        self._data_model.root_data_path = demo_dataset_path
+        # Set the path in the DataManager
+        self._data_manager.root_data_path = demo_dataset_path
 
         # Retrieve the (parsed) root data path
-        root_data_path = self._data_model.root_data_path
+        root_data_path = self._data_manager.root_data_path
 
         # Update the button
         self.pBSelectDataRootFolder.setText(str(root_data_path))
 
         # Scan the data folder
         try:
-            self._data_model.scan()
+            self._data_manager.scan()
         except FileNotFoundError as fe:
             print(f"Error: {fe}", file=self._err_stream)
             return
@@ -691,10 +691,10 @@ class QuMainWidget(QWidget):
         self._update_data_selector()
 
         # Update the training/validation/test split sliders
-        num_train, num_val, num_test = self._data_model.preview_training_split()
+        num_train, num_val, num_test = self._data_manager.preview_training_split()
         self._update_training_ui_elements(
-            self._data_model.training_fraction,
-            self._data_model.validation_fraction,
+            self._data_manager.training_fraction,
+            self._data_manager.validation_fraction,
             num_train,
             num_val,
             num_test
@@ -726,13 +726,13 @@ class QuMainWidget(QWidget):
     def _on_training_returned(self, value):
         """Called when training returned."""
         if bool(value):
-            # Store the best model path in the data model
-            self._data_model.model_path = self._learner.get_best_model_path()
+            # Store the best model path in the data manager
+            self._data_manager.model_path = self._learner.get_best_model_path()
 
             # Show the name of the best model as text on the "Select model" button and
             # the full path as its tooltip
-            self.pbSelectPredictionModelFile.setText(Path(self._data_model.model_path).name)
-            self.pbSelectPredictionModelFile.setToolTip(str(self._data_model.model_path))
+            self.pbSelectPredictionModelFile.setText(Path(self._data_manager.model_path).name)
+            self.pbSelectPredictionModelFile.setToolTip(str(self._data_manager.model_path))
 
             # Inform
             print(f"Training was successful.", file=self._out_stream)

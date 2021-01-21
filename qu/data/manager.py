@@ -56,8 +56,8 @@ class MaskType(Enum):
     H5_ONE_HOT = 4
 
 
-class DataModel:
-    """Data model."""
+class DataManager:
+    """Data manager."""
 
     def __init__(self):
         """Constructor."""

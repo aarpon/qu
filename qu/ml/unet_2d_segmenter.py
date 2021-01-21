@@ -23,7 +23,7 @@ from tifffile import TiffWriter
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 
-from qu.data.model import MaskType
+from qu.data.manager import MaskType
 from qu.transform.extern.monai import ToOneHot
 from qu.transform.extern.monai import Identity, LoadMask
 from qu.ml.abstract_base_learner import AbstractBaseLearner

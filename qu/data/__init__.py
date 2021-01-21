@@ -1,1 +1,1 @@
-from .model import DataModel
+from .manager import DataManager
