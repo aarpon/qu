@@ -13,6 +13,8 @@
 import unittest
 from pathlib import Path
 
+import numpy as np
+
 from qu.data import DataManager, ExperimentType, MaskType
 
 
@@ -43,6 +45,18 @@ class DataManagerTestCase(unittest.TestCase):
         self.assertEqual(0, dataManager.num_targets)
         self.assertEqual(MaskType.TIFF_LABELS, dataManager.mask_type)
 
+        # Check the returned data
+        image, mask = dataManager.get_image_data_at_current_index()
+
+        # Check image
+        self.assertEqual(np.uint16, image.dtype)
+        self.assertEqual(2, image.ndim)
+
+        # Check mask
+        self.assertEqual(np.int32, mask.dtype)
+        self.assertEqual(2, image.ndim)
+        self.assertEqual(3, len(np.unique(mask)))
+
     def test_inferring_regression_experiment(self):
 
         # Data folder
@@ -66,6 +80,17 @@ class DataManagerTestCase(unittest.TestCase):
         self.assertEqual(3, dataManager.num_images)
         self.assertEqual(0, dataManager.num_masks)
         self.assertEqual(3, dataManager.num_targets)
+
+        # Check the returned data
+        image, target = dataManager.get_image_data_at_current_index()
+
+        # Check image
+        self.assertEqual(np.uint16, image.dtype)
+        self.assertEqual(2, image.ndim)
+
+        # Check mask
+        self.assertEqual(np.uint16, target.dtype)
+        self.assertEqual(2, image.ndim)
 
 
 if __name__ == '__main__':
