@@ -10,4 +10,21 @@
 #   *******************************************************************************/
 #
 
-from .monai import Identity, LoadMask, ToOneHot
+import unittest
+
+
+class ImportTestCase(unittest.TestCase):
+
+    def test_import(self):
+        failed = False
+        try:
+            import qu
+        except Exception as e:
+            failed = True
+            print(e)
+
+        self.assertEqual(False, failed)
+
+
+if __name__ == '__main__':
+    unittest.main()

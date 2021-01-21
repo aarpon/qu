@@ -204,6 +204,7 @@ class DataManager:
                 return self._num_output_channels
         elif self._experiment_type == ExperimentType.CLASSIFICATION:
             self._num_output_channels = self.num_classes
+            return self._num_output_channels
         else:
             raise Exception(f"Number of output channels is not defined for an {self._experiment_type}.")
 
@@ -218,6 +219,8 @@ class DataManager:
                 else:
                     raise Exception("No images found!")
             return self._num_classes
+        if self._experiment_type == ExperimentType.REGRESSION:
+            return 0
         else:
             raise Exception(f"Number of classes is not defined for an {self._experiment_type}.")
 
