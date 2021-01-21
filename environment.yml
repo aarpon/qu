@@ -23,7 +23,7 @@ dependencies:
   - tifffile=2020.12.4
   - tqdm=4.55
   - pip:
-      - pyqt5==5.15.2
+      - pyqt5==5.12.3
       - monai-weekly[all]
       - napari[all]
       - opencv-python==4.4.*

@@ -1,3 +1,15 @@
+#   /********************************************************************************
+#   * Copyright © 2020-2021, ETH Zurich, D-BSSE, Aaron Ponti
+#   * All rights reserved. This program and the accompanying materials
+#   * are made available under the terms of the Apache License Version 2.0
+#   * which accompanies this distribution, and is available at
+#   * https://www.apache.org/licenses/LICENSE-2.0.txt
+#   *
+#   * Contributors:
+#   *     Aaron Ponti - initial API and implementation
+#   *******************************************************************************/
+#
+
 from enum import Enum
 import gc
 from glob import glob
@@ -11,6 +23,23 @@ from sklearn.model_selection import train_test_split
 from tifffile import imread, imsave
 
 from qu.transform import one_hot_stack_to_label_image, label_image_to_one_hot_stack
+
+
+class ExperimentType(Enum):
+    """An enum to indicate the type of experiment.
+
+    UNKNOWN
+        No supported experiment type.
+
+    CLASSIFICATION
+        An experiment type that matches images to masks.
+
+    REGRESSION
+        An umbrella term for an experiment that matches images to images.
+    """
+    UNKNOWN = 0,
+    CLASSIFICATION = 1,
+    REGRESSION = 2
 
 
 class MaskType(Enum):
@@ -66,10 +95,16 @@ class DataManager:
         self._index: int = 0
 
         # Number if input channels
-        self._num_channels: int = 0
+        self._num_input_channels: int = 0
+
+        # Number if output channels
+        self._num_output_channels: int = 0
 
         # Number of classes
         self._num_classes: int = 0
+
+        # Experiment type
+        self._experiment_type: ExperimentType = ExperimentType.UNKNOWN
 
         # Mask type
         self._mask_type: MaskType = MaskType.UNKNOWN
@@ -78,25 +113,32 @@ class DataManager:
         self._root_data_path: str = ''
         self._rel_images_path: str = ''
         self._rel_masks_path: str = ''
+        self._rel_targets_path: str = ''
         self._rel_tests_path: str = ''
         self._pred_input_path: str = ''
-        self._pred_target_path: str = ''
+        self._pred_output_path: str = ''
+        self._rel_runs_path: str = ''
 
         # File names
         self._image_names: list = []
         self._mask_names: list = []
+        self._target_names: list = []
 
         # Caches
         self._images: dict = {}
         self._masks: dict = {}
+        self._targets: dict = {}
 
         # Training
         self._training_image_names: list = []
         self._training_mask_names: list = []
+        self._training_target_names: list = []
         self._validation_image_names: list = []
         self._validation_mask_names: list = []
+        self._validation_target_names: list = []
         self._test_image_names: list = []
         self._test_mask_names: list = []
+        self._test_target_names: list = []
 
         # Splits (values between 0.00 and 1.00)
         self._training_fraction: float = 0.75
@@ -137,24 +179,61 @@ class DataManager:
         return len(self._mask_names)
 
     @property
-    def num_channels(self):
+    def num_targets(self):
+        """Number of targets."""
+        return len(self._target_names)
+
+    @property
+    def num_input_channels(self):
         """Number of input channels."""
-        if self._num_channels == 0:
-            if self.num_channels > 0:
-                # Force scanning
-                _ = self.get_or_load_mask_at_current_index()
-        return self._num_channels
+        if self._num_input_channels == 0:
+            # Force scanning
+            _ = self.get_or_load_image_at_current_index()
+        return self._num_input_channels
+
+    @property
+    def num_output_channels(self):
+        """Number of output channels."""
+        if self._experiment_type == ExperimentType.REGRESSION:
+            if self._num_output_channels == 0:
+                if self.num_targets > 0:
+                    # Force scanning
+                    _ = self.get_or_load_target_at_current_index()
+                else:
+                    raise Exception("No images found!")
+                return self._num_output_channels
+        elif self._experiment_type == ExperimentType.CLASSIFICATION:
+            self._num_output_channels = self.num_classes
+            return self._num_output_channels
+        else:
+            raise Exception(f"Number of output channels is not defined for an {self._experiment_type}.")
 
     @property
     def num_classes(self):
         """Number of classes."""
-        if self._num_classes == 0:
-            if self.num_images > 0:
-                # Force scanning
-                _ = self.get_or_load_mask_at_current_index()
-            else:
-                raise Exception("No images found!")
-        return self._num_classes
+        if self._experiment_type == ExperimentType.CLASSIFICATION:
+            if self._num_classes == 0:
+                if self.num_images > 0:
+                    # Force scanning
+                    _ = self.get_or_load_mask_at_current_index()
+                else:
+                    raise Exception("No images found!")
+            return self._num_classes
+        if self._experiment_type == ExperimentType.REGRESSION:
+            return 0
+        else:
+            raise Exception(f"Number of classes is not defined for an {self._experiment_type}.")
+
+    @property
+    def experiment_type(self):
+        """Experiment type.
+
+         @see qu.data.DataManager
+         """
+        if self._experiment_type == ExperimentType.UNKNOWN:
+            # Force scanning
+            self._get_experiment_type_from_data_structure()
+        return self._experiment_type
 
     @property
     def mask_type(self):
@@ -184,15 +263,12 @@ class DataManager:
             self._root_data_path = Path(value).resolve()
             self._rel_images_path = self._root_data_path / "images"
             self._rel_masks_path = self._root_data_path / "masks"
+            self._rel_targets_path = self._root_data_path / "targets"
             self._rel_tests_path = self._root_data_path / "tests"
             self._rel_runs_path = self._root_data_path / "runs"
 
-            # If the directories do not exist, create them
-            Path(self._root_data_path).mkdir(parents=True, exist_ok=True)
-            Path(self._rel_images_path).mkdir(parents=True, exist_ok=True)
-            Path(self._rel_masks_path).mkdir(parents=True, exist_ok=True)
-            Path(self._rel_tests_path).mkdir(parents=True, exist_ok=True)
-            Path(self._rel_runs_path).mkdir(parents=True, exist_ok=True)
+            # Get the experiment type from the data (if some is present)
+            self._get_experiment_type_from_data_structure()
 
     @property
     def training_fraction(self):
@@ -228,11 +304,11 @@ class DataManager:
     @property
     def prediction_target_path(self):
         """Prediction target path."""
-        return self._pred_target_path
+        return self._pred_output_path
 
     @prediction_target_path.setter
     def prediction_target_path(self, value: str):
-        self._pred_target_path = Path(value).resolve()
+        self._pred_output_path = Path(value).resolve()
 
     @property
     def model_path(self):
@@ -262,8 +338,17 @@ class DataManager:
         # Index
         self._index = 0
 
+        # Number if input channels
+        self._num_input_channels = 0
+
+        # Number if output channels
+        self._num_output_channels = 0
+
         # Number of classes
         self._num_classes = 0
+
+        # Experiment type
+        self._experiment_type = ExperimentType.UNKNOWN
 
         # Mask type
         self._mask_type = MaskType.UNKNOWN
@@ -272,23 +357,42 @@ class DataManager:
         self._root_data_path = ''
         self._rel_images_path = ''
         self._rel_masks_path = ''
+        self._rel_targets_path = ''
         self._rel_tests_path = ''
+        self._pred_input_path = ''
+        self._pred_output_path = ''
+        self._rel_runs_path = ''
 
         # File names
         self._image_names = []
         self._mask_names = []
+        self._target_names = []
 
         # Caches
         self._images = {}
         self._masks = {}
+        self._targets = {}
 
         # Training
         self._training_image_names = []
         self._training_mask_names = []
+        self._training_target_names = []
         self._validation_image_names = []
         self._validation_mask_names = []
+        self._validation_target_names = []
         self._test_image_names = []
         self._test_mask_names = []
+        self._test_target_names = []
+
+        # Splits (values between 0.00 and 1.00)
+        self._training_fraction = 0.75
+        self._validation_fraction = 0.80
+
+        # Model path
+        self._model_path = ''
+
+        # Error message
+        self._error_message = ''
 
         # Force garbage collection
         gc.collect()
@@ -298,7 +402,21 @@ class DataManager:
 
         # If the root data path is not set, return
         if self._root_data_path == '':
-            return FileNotFoundError("The data root path is not set.")
+            raise FileNotFoundError("The data root path is not set.")
+
+        # Make sure to know what the data is
+        if self._experiment_type == ExperimentType.UNKNOWN:
+
+            # Quick scan
+            self._get_experiment_type_from_data_structure()
+
+            # Check that it worked
+            if self._experiment_type == ExperimentType.UNKNOWN:
+                raise Exception("Unknown data structure.")
+
+        #
+        # IMAGES
+        #
 
         # Scan for images
         self._image_names = natsorted(
@@ -309,35 +427,67 @@ class DataManager:
         if len(self._image_names) == 0:
             raise FileNotFoundError(f"No images were found.")
 
-        # Scan for masks
-
         # Reset MaskType before reassigning it
         self._mask_type = MaskType.UNKNOWN
 
-        # First look for .tif{f} files
-        self._mask_names = natsorted(
-            glob(str(Path(self._rel_masks_path) / "*.tif*"))
-        )
+        # Do we have a classification experiment?
+        if self._experiment_type == ExperimentType.CLASSIFICATION:
 
-        # If no .tif{f} files were found, try with .npy files
-        if len(self._mask_names) == 0:
+            #
+            # MASKS
+            #
+
+            # Scan for masks
+
+            # First look for .tif{f} files
             self._mask_names = natsorted(
-                glob(str(Path(self._rel_masks_path) / "*.npy"))
+                glob(str(Path(self._rel_masks_path) / "*.tif*"))
             )
 
-        # If neither .tif{f} not .npy files were found, try with .h5 files
-        if len(self._mask_names) == 0:
-            self._mask_names = natsorted(
-                glob(str(Path(self._rel_masks_path) / "*.h5"))
+            # If no .tif{f} files were found, try with .npy files
+            if len(self._mask_names) == 0:
+                self._mask_names = natsorted(
+                    glob(str(Path(self._rel_masks_path) / "*.npy"))
+                )
+
+            # If neither .tif{f} not .npy files were found, try with .h5 files
+            if len(self._mask_names) == 0:
+                self._mask_names = natsorted(
+                    glob(str(Path(self._rel_masks_path) / "*.h5"))
+                )
+
+            if len(self._mask_names) > 0:
+
+                # Check that the number of images matches the number of masks
+                if len(self._image_names) != len(self._mask_names):
+                    raise ValueError(f"The number of images does not match the number of masks.")
+
+                # Set the experiment type
+                self._experiment_type = ExperimentType.CLASSIFICATION
+
+                return True
+
+        elif self._experiment_type == ExperimentType.REGRESSION:
+            #
+            # TARGETS
+            #
+
+            # If no masks where found, scan for targets
+            self._target_names = natsorted(
+                glob(str(Path(self._rel_targets_path) / "*.tif"))
             )
 
-        # If nothing was found, return failure
-        if len(self._mask_names) == 0:
-            raise FileNotFoundError(f"No masks were found.")
+            if len(self._target_names) == 0:
 
-        # Check that the number of images matches the number of masks
-        if len(self._image_names) != len(self._mask_names):
-            raise ValueError(f"The number of images does not match the number of masks.")
+                # Check that the number of images matches the number of tasks
+                if len(self._image_names) != len(self._target_names):
+                    raise ValueError(f"The number of images does not match the number of targets!")
+
+            # Set the experiment type
+            self._experiment_type = ExperimentType.REGRESSION
+
+        else:
+            raise Exception("Unknown data structure.")
 
         # Return success
         return True
@@ -407,10 +557,17 @@ class DataManager:
         if len(self._image_names) == 0:
             return [], [], [], [], [], []
 
+        if self._experiment_type == ExperimentType.CLASSIFICATION:
+            target_names = self._mask_names
+        elif self._experiment_type == ExperimentType.REGRESSION:
+            target_names = self._target_names
+        else:
+            raise Exception("Unknown experiment type!")
+
         # Training set
         train_image_names, rest_image_names, train_mask_names, rest_mask_names = train_test_split(
             self._image_names,
-            self._mask_names,
+            target_names,
             test_size=(1.00 - self._training_fraction),
             random_state=0,
             shuffle=True
@@ -428,7 +585,7 @@ class DataManager:
         # Return
         return train_image_names, train_mask_names, val_image_names, val_mask_names, test_image_names, test_mask_names
 
-    def get_image_and_mask_at_current_index(self) -> Tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
+    def get_image_data_at_current_index(self) -> Tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
         """Retrieve image and mask data for current index."""
 
         if len(self._image_names) == 0:
@@ -437,11 +594,22 @@ class DataManager:
         # Get the image
         img = self.get_or_load_image_at_current_index()
 
-        # Get the mask
-        mask = self.get_or_load_mask_at_current_index()
+        if self._experiment_type == ExperimentType.CLASSIFICATION:
+
+            # Get the mask
+            out = self.get_or_load_mask_at_current_index()
+
+        elif self._experiment_type == ExperimentType.REGRESSION:
+
+            # Get the target
+            out = self.get_or_load_target_at_current_index()
+
+        else:
+
+            raise Exception("Unknown experiment type.")
 
         # Return
-        return img, mask
+        return img, out
 
     def get_or_load_image_at_current_index(self):
         """Get current image from cache or load it."""
@@ -449,7 +617,6 @@ class DataManager:
 
     def get_or_load_image_at_index(self, index: int):
         """Get image for requested index from cache or load it."""
-
         img = None
 
         if index in self._images:
@@ -464,11 +631,47 @@ class DataManager:
                 # Add it to the cache
                 self._images[index] = img
 
-        if self._num_channels == 0:
+        if self._num_input_channels == 0:
             if img.ndim == 2:
-                self._num_channels = 1
+                self._num_input_channels = 1
             else:
-                self._num_channels = img.shape[2]
+                self._num_input_channels = img.shape[2]
+
+        return img
+
+    def get_or_load_target_at_current_index(self):
+        """Get current target from cache or load it."""
+        return self.get_or_load_target_at_index(self._index)
+
+    def get_or_load_target_at_index(self, index: int):
+        """Get target image for requested index from cache or load it.
+
+        In case of failure, the last_error_message property contains
+        the error message.
+
+        @param index: Index of the target image to get or load.
+
+        @return the target image if it could be loaded properly, None otherwise.
+        """
+        img = None
+
+        if index in self._targets:
+            img = self._targets[index]
+        else:
+            # Load it
+            if index < len(self._target_names):
+                image_file_name = self._target_names[index]
+                if image_file_name is not None:
+                    img = imread(image_file_name)
+
+                # Add it to the cache
+                self._targets[index] = img
+
+        if self._num_output_channels == 0:
+            if img.ndim == 2:
+                self._num_output_channels = 1
+            else:
+                self._num_output_channels = img.shape[2]
 
         return img
 
@@ -838,3 +1041,42 @@ class DataManager:
                                   '\n'.join(map(str, failed_masks))
 
         return success
+
+    def _get_experiment_type_from_data_structure(self):
+        """Queries the data structure to judge the experiment type."""
+
+        # Start with an unknown experiment type
+        self._experiment_type = ExperimentType.UNKNOWN
+
+        # Make sure that the images subfolder exists and contains some images
+        found_images = \
+            Path(self._rel_images_path).is_dir() and \
+            len(glob(str(Path(self._rel_images_path) / "*.*"))) > 0
+
+        if not found_images:
+
+            # Unknown experiment type
+            self._experiment_type = ExperimentType.UNKNOWN
+
+            # We can return here
+            return
+
+        # Quick scan: does the maks folder exist? Does it contain something?
+        if Path(self._rel_masks_path).is_dir():
+            if len(glob(str(Path(self._rel_masks_path) / "*.*"))) > 0:
+
+                # Masks found (more thorough inspection in scan())
+                self._experiment_type = ExperimentType.CLASSIFICATION
+
+                # We can return here
+                return
+
+        # Quick scan: does the targets folder exist? Does it contain something?
+        if Path(self._rel_targets_path).is_dir():
+            if len(glob(str(Path(self._rel_targets_path) / "*.*"))) > 0:
+
+                # Targets found (more thorough inspection in scan())
+                self._experiment_type = ExperimentType.REGRESSION
+
+        # We can return
+        return

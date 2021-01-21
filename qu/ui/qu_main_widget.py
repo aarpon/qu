@@ -1,3 +1,15 @@
+#   /********************************************************************************
+#   * Copyright © 2020-2021, ETH Zurich, D-BSSE, Aaron Ponti
+#   * All rights reserved. This program and the accompanying materials
+#   * are made available under the terms of the Apache License Version 2.0
+#   * which accompanies this distribution, and is available at
+#   * https://www.apache.org/licenses/LICENSE-2.0.txt
+#   *
+#   * Contributors:
+#   *     Aaron Ponti - initial API and implementation
+#   *******************************************************************************/
+#
+
 from pathlib import Path
 
 import torch
@@ -15,7 +27,7 @@ from qu.ml import UNet2DSegmenter
 from qu.ml import UNet2DSegmenterSettings
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
-from qu.data import DataManager
+from qu.data import DataManager, ExperimentType
 from qu.ui.qu_logger_widget import QuLoggerWidget
 from qu.ui.qu_unet_settings_dialog import QuUNetSettingsDialog
 from qu.ui.threads import LearnerManager, PredictorManager
@@ -198,21 +210,29 @@ class QuMainWidget(QWidget):
         """Display current image and mask."""
 
         # Get current data (if there is any)
-        image, mask = self._data_manager.get_image_and_mask_at_current_index()
+        image, mask = self._data_manager.get_image_data_at_current_index()
         if image is None:
             self._update_data_selector()
             return
 
-        # Display image and mask
+        # Display image and mask/target
         if 'Image' in self._viewer.layers:
             self._viewer.layers["Image"].data = image
         else:
             self._viewer.add_image(image, name="Image")
 
-        if 'Mask' in self._viewer.layers:
-            self._viewer.layers["Mask"].data = mask
+        if self._data_manager.experiment_type == ExperimentType.CLASSIFICATION:
+            if 'Mask' in self._viewer.layers:
+                self._viewer.layers["Mask"].data = mask
+            else:
+                self._viewer.add_labels(mask, name="Mask")
+        elif self._data_manager.experiment_type == ExperimentType.REGRESSION:
+            if 'Target' in self._viewer.layers:
+                self._viewer.layers["Target"].data = mask
+            else:
+                self._viewer.add_image(mask, name="Target")
         else:
-            self._viewer.add_labels(mask, name="Mask")
+            raise Exception("Unknown experiment type.")
 
     def _update_training_ui_elements(
             self,
@@ -509,7 +529,7 @@ class QuMainWidget(QWidget):
         if arch == 0:
             self._learner = UNet2DSegmenter(
                 self._data_manager.mask_type,
-                in_channels=self._data_manager.num_channels,
+                in_channels=self._data_manager.num_input_channels,
                 out_channels=self._data_manager.num_classes,
                 roi_size=self._learner_settings.roi_size,
                 num_epochs=self._learner_settings.num_epochs,
@@ -565,39 +585,56 @@ class QuMainWidget(QWidget):
     def _on_qu_save_mask_action(self):
         """Qu save mask action."""
 
-        # Save current mask
-        if self._data_manager.save_mask_at_current_index():
-            print(f"Current mask saved.", file=self._out_stream)
-        else:
-            print(self._data_manager.last_error_message, file=self._err_stream)
+        # This applies only to classification experiments
+        if self._data_manager.experiment_type == ExperimentType.CLASSIFICATION:
 
+            # Save current mask
+            if self._data_manager.save_mask_at_current_index():
+                print(f"Current mask saved.", file=self._out_stream)
+            else:
+                print(self._data_manager.last_error_message, file=self._err_stream)
+
+        else:
+            print("There are no masks to save.", file=self._err_stream)
 
     @pyqtSlot(name="_on_qu_reload_mask_action")
     def _on_qu_reload_mask_action(self):
         """Qu reload mask action."""
 
-        # Reload mask
-        if self._data_manager.reload_mask_at_current_index():
-            print(f"Current mask reloaded.", file=self._out_stream)
-        else:
-            print(self._data_manager.last_error_message, file=self._err_stream)
+        # This applies only to classification experiments
+        if self._data_manager.experiment_type == ExperimentType.CLASSIFICATION:
 
-        # Update the display
-        self.display()
+            # Reload mask
+            if self._data_manager.reload_mask_at_current_index():
+                print(f"Current mask reloaded.", file=self._out_stream)
+            else:
+                print(self._data_manager.last_error_message, file=self._err_stream)
+
+            # Update the display
+            self.display()
+
+        else:
+            print("There are no masks to reload.", file=self._err_stream)
 
     @pyqtSlot(name="_on_qu_save_all_masks_action")
     def _on_qu_save_all_masks_action(self):
         """Qu save all masks action."""
 
-        # Are there masks loaded?
-        if self._data_manager.num_masks == 0:
-            return
+        # This applies only to classification experiments
+        if self._data_manager.experiment_type == ExperimentType.CLASSIFICATION:
 
-        # Save all cached (i.e. potentially modified) masks
-        if self._data_manager.save_all_cached_masks():
-            print("Saving completed.", file=self._out_stream)
+            # Are there masks loaded?
+            if self._data_manager.num_masks == 0:
+                return
+
+            # Save all cached (i.e. potentially modified) masks
+            if self._data_manager.save_all_cached_masks():
+                print("Saving completed.", file=self._out_stream)
+            else:
+                print(self._data_manager.last_error_message, file=self._err_stream)
+
         else:
-            print(self._data_manager.last_error_message, file=self._err_stream)
+            print("There are no masks to save.", file=self._err_stream)
 
     @pyqtSlot(name="_on_launch_tensorboard_action")
     def _on_launch_tensorboard_action(self):

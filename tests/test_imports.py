@@ -10,7 +10,21 @@
 #   *******************************************************************************/
 #
 
-from pathlib import Path
-from qu.ui import resources_rc
+import unittest
 
-_ui_folder_path = Path(__file__).parent.resolve()
+
+class ImportTestCase(unittest.TestCase):
+
+    def test_import(self):
+        failed = False
+        try:
+            import qu
+        except Exception as e:
+            failed = True
+            print(e)
+
+        self.assertEqual(False, failed)
+
+
+if __name__ == '__main__':
+    unittest.main()
