@@ -1,3 +1,15 @@
+#   /********************************************************************************
+#   * Copyright © 2020-2021, ETH Zurich, D-BSSE, Aaron Ponti
+#   * All rights reserved. This program and the accompanying materials
+#   * are made available under the terms of the Apache License Version 2.0
+#   * which accompanies this distribution, and is available at
+#   * https://www.apache.org/licenses/LICENSE-2.0.txt
+#   *
+#   * Contributors:
+#   *     Aaron Ponti - initial API and implementation
+#   *******************************************************************************/
+#
+
 from enum import Enum
 import gc
 from glob import glob
@@ -91,9 +103,6 @@ class DataManager:
         # Number of classes
         self._num_classes: int = 0
 
-        # Number of targets
-        self._num_targets: int = 0
-
         # Experiment type
         self._experiment_type: ExperimentType = ExperimentType.UNKNOWN
 
@@ -170,29 +179,47 @@ class DataManager:
         return len(self._mask_names)
 
     @property
+    def num_targets(self):
+        """Number of targets."""
+        return len(self._target_names)
+
+    @property
     def num_input_channels(self):
         """Number of input channels."""
         if self._num_input_channels == 0:
-            if self.num_input_channels > 0:
-                # Force scanning
-                _ = self.get_or_load_mask_at_current_index()
+            # Force scanning
+            _ = self.get_or_load_image_at_current_index()
         return self._num_input_channels
 
     @property
     def num_output_channels(self):
         """Number of output channels."""
-        raise NotImplementedError("Implement me!")
+        if self._experiment_type == ExperimentType.REGRESSION:
+            if self._num_output_channels == 0:
+                if self.num_targets > 0:
+                    # Force scanning
+                    _ = self.get_or_load_target_at_current_index()
+                else:
+                    raise Exception("No images found!")
+                return self._num_output_channels
+        elif self._experiment_type == ExperimentType.CLASSIFICATION:
+            self._num_output_channels = self.num_classes
+        else:
+            raise Exception(f"Number of output channels is not defined for an {self._experiment_type}.")
 
     @property
     def num_classes(self):
         """Number of classes."""
-        if self._num_classes == 0:
-            if self.num_images > 0:
-                # Force scanning
-                _ = self.get_or_load_mask_at_current_index()
-            else:
-                raise Exception("No images found!")
-        return self._num_classes
+        if self._experiment_type == ExperimentType.CLASSIFICATION:
+            if self._num_classes == 0:
+                if self.num_images > 0:
+                    # Force scanning
+                    _ = self.get_or_load_mask_at_current_index()
+                else:
+                    raise Exception("No images found!")
+            return self._num_classes
+        else:
+            raise Exception(f"Number of classes is not defined for an {self._experiment_type}.")
 
     @property
     def experiment_type(self):
@@ -316,9 +343,6 @@ class DataManager:
 
         # Number of classes
         self._num_classes = 0
-
-        # Number of targets
-        self._num_targets = 0
 
         # Experiment type
         self._experiment_type = ExperimentType.UNKNOWN
