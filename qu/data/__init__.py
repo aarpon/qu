@@ -1,1 +1,1 @@
-from .manager import DataManager
+from .manager import DataManager, MaskType, ExperimentType

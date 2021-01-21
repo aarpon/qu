@@ -1,1 +1,1 @@
-from .demo import get_demo_segmentation_dataset
+from .demo import get_demo_segmentation_dataset, get_demo_restoration_dataset
