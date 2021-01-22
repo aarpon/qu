@@ -224,7 +224,7 @@ class QuMainWidget(QWidget):
         """Display current image and mask."""
 
         # Get current data (if there is any)
-        image, mask = self._data_manager.get_image_data_at_current_index()
+        image, out = self._data_manager.get_image_data_at_current_index()
         if image is None:
             self._update_data_selector()
             return
@@ -237,14 +237,14 @@ class QuMainWidget(QWidget):
 
         if self._data_manager.experiment_type == ExperimentType.CLASSIFICATION:
             if 'Mask' in self._viewer.layers:
-                self._viewer.layers["Mask"].data = mask
+                self._viewer.layers["Mask"].data = out
             else:
-                self._viewer.add_labels(mask, name="Mask")
+                self._viewer.add_labels(out, name="Mask")
         elif self._data_manager.experiment_type == ExperimentType.REGRESSION:
             if 'Target' in self._viewer.layers:
-                self._viewer.layers["Target"].data = mask
+                self._viewer.layers["Target"].data = out
             else:
-                self._viewer.add_image(mask, name="Target")
+                self._viewer.add_image(out, name="Target")
         else:
             raise Exception("Unknown experiment type.")
 

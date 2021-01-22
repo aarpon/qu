@@ -10,4 +10,4 @@
 #   *******************************************************************************/
 #
 
-from .monai import Identity, LoadMask, ToOneHot
+from .monai import Identity, LoadMask, ToOneHot, DebugInformer

@@ -23,19 +23,18 @@ import os
 import torch
 from monai.data import ArrayDataset, DataLoader, Dataset
 from monai.inferers import sliding_window_inference
-from monai.losses import GeneralizedDiceLoss
 from monai.metrics import DiceMetric
 from monai.networks.nets import UNet
 from monai.utils import set_determinism
 from monai.transforms import AddChannel, Compose, LoadImage, \
-    RandRotate90, RandSpatialCrop, ToTensor
+    RandRotate90, RandSpatialCrop, ToTensor, ScaleIntensityRange, ScaleIntensity, ToNumpy
 from natsort import natsorted
 from tifffile import TiffWriter
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn import MSELoss
 
-from qu.transform.extern.monai import ToOneHot, Identity
+from qu.transform.extern.monai import Identity
 from qu.ml.abstract_base_learner import AbstractBaseLearner
 from qu.transform import one_hot_stack_to_label_image
 
@@ -422,8 +421,9 @@ class UNet2DMapper(AbstractBaseLearner):
                 )
                 test_outputs = self._test_post_transforms(test_outputs)
 
-                # Retrieve the image from the GPU (if needed)
-                pred = test_outputs.cpu().numpy().squeeze()
+                # The ToNumpy() transform already causes the Tensor
+                # to be gathered from the GPU to the CPU
+                pred = test_outputs.squeeze()
 
                 # Prepare the output file name
                 basename = os.path.splitext(os.path.basename(self._test_image_names[indx]))[0]
@@ -523,8 +523,9 @@ class UNet2DMapper(AbstractBaseLearner):
                 )
                 prediction_outputs = self._prediction_post_transforms(prediction_outputs)
 
-                # Retrieve the image from the GPU (if needed)
-                pred = prediction_outputs.cpu().numpy().squeeze()
+                # The ToNumpy() transform already causes the Tensor
+                # to be gathered from the GPU to the CPU
+                pred = prediction_outputs.squeeze()
 
                 # Prepare the output file name
                 basename = os.path.splitext(os.path.basename(self._prediction_image_names[indx]))[0]
@@ -633,6 +634,7 @@ class UNet2DMapper(AbstractBaseLearner):
         self._train_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 RandSpatialCrop(self._roi_size, random_size=False),
                 RandRotate90(prob=0.5, spatial_axes=(0, 1)),
@@ -642,6 +644,7 @@ class UNet2DMapper(AbstractBaseLearner):
         self._train_target_transforms = Compose(
             [
                 LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 RandSpatialCrop(self._roi_size, random_size=False),
                 RandRotate90(prob=0.5, spatial_axes=(0, 1)),
@@ -653,6 +656,7 @@ class UNet2DMapper(AbstractBaseLearner):
         self._validation_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 ToTensor()
             ]
@@ -660,6 +664,7 @@ class UNet2DMapper(AbstractBaseLearner):
         self._validation_target_transforms = Compose(
             [
                 LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 ToTensor()
             ]
@@ -669,6 +674,7 @@ class UNet2DMapper(AbstractBaseLearner):
         self._test_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 ToTensor()
             ]
@@ -676,6 +682,7 @@ class UNet2DMapper(AbstractBaseLearner):
         self._test_target_transforms = Compose(
             [
                 LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 ToTensor()
             ]
@@ -699,13 +706,15 @@ class UNet2DMapper(AbstractBaseLearner):
 
         self._test_post_transforms = Compose(
             [
-                Identity()
+                ToNumpy(),
+                ScaleIntensity(0, 65535)
             ]
         )
 
         self._prediction_post_transforms = Compose(
             [
-                Identity()
+                ToNumpy(),
+                ScaleIntensity(0, 65535)
             ]
         )
 
