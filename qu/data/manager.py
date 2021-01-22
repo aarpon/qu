@@ -201,7 +201,7 @@ class DataManager:
                     _ = self.get_or_load_target_at_current_index()
                 else:
                     raise Exception("No images found!")
-                return self._num_output_channels
+            return self._num_output_channels
         elif self._experiment_type == ExperimentType.CLASSIFICATION:
             self._num_output_channels = self.num_classes
             return self._num_output_channels
