@@ -27,9 +27,8 @@ from monai.losses import GeneralizedDiceLoss
 from monai.metrics import DiceMetric
 from monai.networks.nets import UNet
 from monai.utils import set_determinism
-from monai.transforms import Activations, AddChannel, AsDiscrete, \
-    Compose, LoadImage, RandRotate90, RandSpatialCrop, \
-    ScaleIntensity, ToTensor
+from monai.transforms import AddChannel, Compose, LoadImage, \
+    RandRotate90, RandSpatialCrop, ToTensor
 from natsort import natsorted
 from tifffile import TiffWriter
 from torch.optim import Adam
