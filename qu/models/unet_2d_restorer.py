@@ -32,9 +32,8 @@ from natsort import natsorted
 from tifffile import TiffWriter
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
-from torch.nn import MSELoss, L1Loss
+from torch.nn import L1Loss
 
-from qu.losses.lap_pyramid_loss import LapLoss
 from qu.transform.extern.monai import Identity
 from qu.models.abstract_base_learner import AbstractBaseLearner
 from qu.transform import one_hot_stack_to_label_image
