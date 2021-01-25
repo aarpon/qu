@@ -14,6 +14,7 @@ import h5py
 from monai.transforms import Transform
 import numpy as np
 from tifffile import imread
+import torch
 
 from qu.data.manager import MaskType
 from qu.transform.transform import label_image_to_one_hot_stack
@@ -111,3 +112,35 @@ class LoadMask(Transform):
         mask = mask.astype(np.int32)
 
         return mask
+
+
+class DebugInformer(Transform):
+    """
+    Simple reporter to be added to a Composed list of Transforms
+    to return some information. The data is returned untouched.
+    """
+    def __init__(self, *args, **kwargs):
+        """Constructor.
+
+        @param name: str
+            Name of the Informer. It is printed as a prefix to the output.
+        """
+        super().__init__()
+        self.name = ""
+        if "name" in kwargs:
+            self.name = kwargs['name']
+
+    def __call__(self, data):
+        """Call the Transform."""
+        prefix = f"{self.name} :: " if self.name != "" else ""
+        if type(data) == torch.Tensor:
+            print(f"{prefix}Torch tensor: Size = {data.size()}, type = {data.dtype}, min = {data.min()}, max = {data.max()}")
+        elif type(data) == np.ndarray:
+            print(f"{prefix}Numpy array: Size = {data.shape}, type = {data.dtype}, min = {data.min()}, max = {data.max()}")
+        elif type(data) == str:
+            print(f"{prefix}String: value = '{str}'")
+        elif type(data) == itk.itkPyBufferPython.NDArrayITKBase:
+            print(f"{prefix}ITK array: Size = {data.shape}, type = {data.dtype}, min = {data.min().item()}, max = {data.max().item()}")
+        else:
+            print(f"{prefix}{type(data)}: {str(data)}")
+        return data

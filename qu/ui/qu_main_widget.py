@@ -22,14 +22,15 @@ from monai import __version__ as __monai_version__
 import sys
 
 from qu import __version__
-from qu.demo import get_demo_segmentation_dataset
-from qu.ml import UNet2DSegmenter
-from qu.ml import UNet2DSegmenterSettings
+from qu.demo import get_demo_segmentation_dataset, get_demo_restoration_dataset
+from qu.models import UNet2DSegmenter, UNet2DRestorer, UNet2DRestorerSettings
+from qu.models import UNet2DSegmenterSettings
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataManager, ExperimentType
+from qu.ui.dialogs.qu_unet_restorer_settings_dialog import QuUNetMapperSettingsDialog
 from qu.ui.qu_logger_widget import QuLoggerWidget
-from qu.ui.qu_unet_settings_dialog import QuUNetSettingsDialog
+from qu.ui.dialogs.qu_unet_segmenter_settings_dialog import QuUNetSegmenterSettingsDialog
 from qu.ui.threads import LearnerManager, PredictorManager
 
 
@@ -40,6 +41,21 @@ class QuMainWidget(QWidget):
 
         # Call base constructor
         super().__init__(*args, **kwargs)
+
+        # Initialize data manager
+        self._data_manager = DataManager()
+
+        # Keep references to all learners and their settings
+        self._all_learners_settings = {
+            0: (UNet2DSegmenter(), UNet2DSegmenterSettings()),
+            1: (UNet2DRestorer(), UNet2DRestorerSettings())
+        }
+
+        # Keep reference to the learner (instantiate to the first one)
+        self._learner = self._all_learners_settings[0][0]
+
+        # Keep a reference to the settings for the learner (instantiate to the first one)
+        self._learner_settings = self._all_learners_settings[0][1]
 
         # Store a reference to the napari viewer
         self._viewer = viewer
@@ -67,15 +83,6 @@ class QuMainWidget(QWidget):
 
         # Set the connections
         self._set_connections()
-
-        # Initialize data manager
-        self._data_manager = DataManager()
-
-        # Keep a reference to the learner
-        self._learner = None
-
-        # Keep a reference to the settings for the learner (defaults to UNet2DSegmenterSettings)
-        self._learner_settings = UNet2DSegmenterSettings()
 
         # Dock it
         viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
@@ -157,10 +164,14 @@ class QuMainWidget(QWidget):
         # Add demos menu
         demos_menu = qu_menu.addMenu("Demos")
 
-        # Add get demo
-        demo_segmentation_action = QAction(QIcon(":/icons/download.png"), "Demo segmentation dataset", self)
+        # Add demos
+        demo_segmentation_action = QAction(QIcon(":/icons/download.png"), "Segmentation dataset", self)
         demo_segmentation_action.triggered.connect(self._on_qu_demo_segmentation_action)
         demos_menu.addAction(demo_segmentation_action)
+
+        demo_restoration_action = QAction(QIcon(":/icons/download.png"), "Restoration dataset", self)
+        demo_restoration_action.triggered.connect(self._on_qu_demo_restoration_action)
+        demos_menu.addAction(demo_restoration_action)
 
         # Add help action
         help_action = QAction(QIcon(":/icons/help.png"), "Help", self)
@@ -175,6 +186,9 @@ class QuMainWidget(QWidget):
         # Data root and navigation
         self.pBSelectDataRootFolder.clicked.connect(self._on_select_data_root_folder)
         self.hsImageSelector.valueChanged.connect(self._on_selector_value_changed)
+
+        # Architecture picker
+        self.cbArchitecturePicker.currentIndexChanged.connect(self._on_architecture_changed)
 
         # Training
         self.hsTrainingValidationSplit.valueChanged.connect(self._on_train_val_split_selector_value_changed)
@@ -210,7 +224,7 @@ class QuMainWidget(QWidget):
         """Display current image and mask."""
 
         # Get current data (if there is any)
-        image, mask = self._data_manager.get_image_data_at_current_index()
+        image, out = self._data_manager.get_image_data_at_current_index()
         if image is None:
             self._update_data_selector()
             return
@@ -223,14 +237,14 @@ class QuMainWidget(QWidget):
 
         if self._data_manager.experiment_type == ExperimentType.CLASSIFICATION:
             if 'Mask' in self._viewer.layers:
-                self._viewer.layers["Mask"].data = mask
+                self._viewer.layers["Mask"].data = out
             else:
-                self._viewer.add_labels(mask, name="Mask")
+                self._viewer.add_labels(out, name="Mask")
         elif self._data_manager.experiment_type == ExperimentType.REGRESSION:
             if 'Target' in self._viewer.layers:
-                self._viewer.layers["Target"].data = mask
+                self._viewer.layers["Target"].data = out
             else:
-                self._viewer.add_image(mask, name="Target")
+                self._viewer.add_image(out, name="Target")
         else:
             raise Exception("Unknown experiment type.")
 
@@ -269,6 +283,17 @@ class QuMainWidget(QWidget):
 
     def _setup_session(self, data_folder):
         """Set up a new session using the specified data folder."""
+
+    @pyqtSlot(int, name="_on_architecture_changed")
+    def _on_architecture_changed(self, new_index) -> None:
+        """Called then the selection in the architecture pull-down menu changes."""
+
+        # Get index of selected architecture
+        arch = self.cbArchitecturePicker.currentIndex()
+
+        # Update the references
+        self._learner = self._all_learners_settings[arch][0]
+        self._learner_settings = self._all_learners_settings[arch][1]
 
     @pyqtSlot(bool, name="_on_select_data_root_folder")
     def _on_select_data_root_folder(self) -> None:
@@ -507,11 +532,21 @@ class QuMainWidget(QWidget):
         # Get index of selected architecture
         arch = self.cbArchitecturePicker.currentIndex()
 
+        # Open the dialog and allow the user to modify the settings.
+        # When the dialog is closed, the updated settings are returned.
         if arch == 0:
-            settings_copy = QuUNetSettingsDialog.get_settings(self._learner_settings)
+            settings_copy = QuUNetSegmenterSettingsDialog.get_settings(self._all_learners_settings[arch][1])
+        elif arch == 1:
+            settings_copy = QuUNetMapperSettingsDialog.get_settings(self._all_learners_settings[arch][1])
+        else:
+            raise Exception("Unsupported option!")
 
+        # If the user did not "cancel" the dialog, update the settings references
         if settings_copy is not None:
             self._learner_settings = settings_copy
+            new_settings_tuple = (self._all_learners_settings[arch][0], settings_copy)
+            self._all_learners_settings[arch] = new_settings_tuple
+
 
     @pyqtSlot(name="_on_run_training")
     def _on_run_training(self):
@@ -541,6 +576,22 @@ class QuMainWidget(QWidget):
                 stdout=self._out_stream,
                 stderr=self._err_stream
             )
+        elif arch == 1:
+            self._learner = UNet2DRestorer(
+                in_channels=self._data_manager.num_input_channels,
+                out_channels=self._data_manager.num_output_channels,
+                roi_size=self._learner_settings.roi_size,
+                num_epochs=self._learner_settings.num_epochs,
+                batch_sizes=self._learner_settings.batch_sizes,
+                num_workers=self._learner_settings.num_workers,
+                validation_step=self._learner_settings.validation_step,
+                sliding_window_batch_size=self._learner_settings.sliding_window_batch_size,
+                working_dir=self._data_manager.root_data_path,
+                stdout=self._out_stream,
+                stderr=self._err_stream
+            )
+        else:
+            raise Exception("Unsupported option!")
 
         # Get the data
         try:
@@ -697,13 +748,13 @@ class QuMainWidget(QWidget):
             self._data_manager.reset()
 
         # Inform
-        print("If needed, download and extract demo data.", file=self._out_stream)
+        print("If needed, download and extract segmentation demo data.", file=self._out_stream)
 
         # Get the data
         demo_dataset_path = get_demo_segmentation_dataset()
 
         # Inform
-        print("Opening demo dataset.", file=self._out_stream)
+        print("Opening segmentation demo dataset.", file=self._out_stream)
 
         # Set the path in the DataManager
         self._data_manager.root_data_path = demo_dataset_path
@@ -741,8 +792,72 @@ class QuMainWidget(QWidget):
         self.display()
 
         # Inform
-        print("Demo dataset opened.", file=self._out_stream)
+        print("Segmentation demo dataset opened.", file=self._out_stream)
 
+    @pyqtSlot(name="_on_qu_demo_restoration_action")
+    def _on_qu_demo_restoration_action(self):
+        """Qu restoration demo action."""
+
+        # Check whether we already have data loaded
+        if self._data_manager.num_images > 0:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Question)
+            msg.setText("Are you sure you want to discard current data?")
+            msg.setInformativeText("All data and changes will be lost.")
+            msg.setWindowTitle("Qu:: Question")
+            msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+            if msg.exec_() == QMessageBox.Cancel:
+                return
+
+            # Reset current model
+            self._data_manager.reset()
+
+        # Inform
+        print("If needed, download and extract restoration demo data.", file=self._out_stream)
+
+        # Get the data
+        demo_dataset_path = get_demo_restoration_dataset()
+
+        # Inform
+        print("Opening restoration demo dataset.", file=self._out_stream)
+
+        # Set the path in the DataManager
+        self._data_manager.root_data_path = demo_dataset_path
+
+        # Retrieve the (parsed) root data path
+        root_data_path = self._data_manager.root_data_path
+
+        # Update the button
+        self.pBSelectDataRootFolder.setText(str(root_data_path))
+
+        # Scan the data folder
+        try:
+            self._data_manager.scan()
+        except FileNotFoundError as fe:
+            print(f"Error: {fe}", file=self._err_stream)
+            return
+        except ValueError as ve:
+            print(f"Error: {ve}", file=self._err_stream)
+            return
+
+        # Update the data selector
+        self._update_data_selector()
+
+        # Update the training/validation/test split sliders
+        num_train, num_val, num_test = self._data_manager.preview_training_split()
+        self._update_training_ui_elements(
+            self._data_manager.training_fraction,
+            self._data_manager.validation_fraction,
+            num_train,
+            num_val,
+            num_test
+        )
+
+        # Display current data
+        self.display()
+
+        # Inform
+        print("Restoration demo dataset opened.", file=self._out_stream)
 
     @pyqtSlot(name="_on_qu_help_action")
     def _on_qu_help_action(self):

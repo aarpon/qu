@@ -114,7 +114,7 @@ def get_demo_restoration_dataset():
         r = requests.get("https://obit.ethz.ch/qu/demo_restoration.zip")
 
         # Target file
-        with open(data_folder / "demo_segmentation.zip", 'wb') as f:
+        with open(data_folder / "demo_restoration.zip", 'wb') as f:
             f.write(r.content)
 
         # Inform

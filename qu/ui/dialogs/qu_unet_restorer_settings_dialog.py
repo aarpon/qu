@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import QDialog
 from qu.ui import _ui_folder_path
 
 
-class QuUNetSettingsDialog(QDialog):
+class QuUNetMapperSettingsDialog(QDialog):
     """Dialog to edit the settings of the UNetLearner.
 
     A copy of the passed settings is edited and returned if
@@ -38,7 +38,7 @@ class QuUNetSettingsDialog(QDialog):
         self._settings = dataclasses.replace(settings)
 
         # Set up UI
-        uic.loadUi(_ui_folder_path / "qu_unet_settings_dialog.ui", self)
+        uic.loadUi(_ui_folder_path / "dialogs" / "qu_unet_restorer_settings_dialog.ui", self)
 
         # Make sure to set validators where necessary
         self._set_validators()
@@ -82,7 +82,7 @@ class QuUNetSettingsDialog(QDialog):
     @staticmethod
     def get_settings(settings, parent=None):
         """Static method to create the dialog and return the updated settings or None if cancelled."""
-        dialog = QuUNetSettingsDialog(settings, parent)
+        dialog = QuUNetMapperSettingsDialog(settings, parent)
         if QDialog.Accepted == dialog.exec_():
             return dialog._settings
         return None
