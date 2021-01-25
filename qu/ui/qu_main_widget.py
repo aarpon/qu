@@ -23,12 +23,12 @@ import sys
 
 from qu import __version__
 from qu.demo import get_demo_segmentation_dataset, get_demo_restoration_dataset
-from qu.ml import UNet2DSegmenter, UNet2DMapper, UNet2DMapperSettings
-from qu.ml import UNet2DSegmenterSettings
+from qu.models import UNet2DSegmenter, UNet2DRestorer, UNet2DRestorerSettings
+from qu.models import UNet2DSegmenterSettings
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataManager, ExperimentType
-from qu.ui.dialogs.qu_unet_mapper_settings_dialog import QuUNetMapperSettingsDialog
+from qu.ui.dialogs.qu_unet_restorer_settings_dialog import QuUNetMapperSettingsDialog
 from qu.ui.qu_logger_widget import QuLoggerWidget
 from qu.ui.dialogs.qu_unet_segmenter_settings_dialog import QuUNetSegmenterSettingsDialog
 from qu.ui.threads import LearnerManager, PredictorManager
@@ -48,7 +48,7 @@ class QuMainWidget(QWidget):
         # Keep references to all learners and their settings
         self._all_learners_settings = {
             0: (UNet2DSegmenter(), UNet2DSegmenterSettings()),
-            1: (UNet2DMapper(), UNet2DMapperSettings())
+            1: (UNet2DRestorer(), UNet2DRestorerSettings())
         }
 
         # Keep reference to the learner (instantiate to the first one)
@@ -577,7 +577,7 @@ class QuMainWidget(QWidget):
                 stderr=self._err_stream
             )
         elif arch == 1:
-            self._learner = UNet2DMapper(
+            self._learner = UNet2DRestorer(
                 in_channels=self._data_manager.num_input_channels,
                 out_channels=self._data_manager.num_output_channels,
                 roi_size=self._learner_settings.roi_size,

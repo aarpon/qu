@@ -16,8 +16,8 @@ from typing import Tuple
 
 
 @dataclass
-class UNet2DMapperSettings:
-    """Settings for the UNet mapper."""
+class UNet2DRestorerSettings:
+    """Settings for the UNet Restorer."""
 
     # Number of epochs
     num_epochs: int = 10

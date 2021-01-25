@@ -12,5 +12,5 @@
 
 from .unet_2d_segmenter import UNet2DSegmenter
 from .unet_2d_segmenter_settings import UNet2DSegmenterSettings
-from .unet_2d_mapper import UNet2DMapper
-from .unet_2d_mapper_settings import UNet2DMapperSettings
+from .unet_2d_restorer import UNet2DRestorer
+from .unet_2d_restorer_settings import UNet2DRestorerSettings

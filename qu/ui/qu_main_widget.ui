@@ -192,7 +192,7 @@
        </item>
        <item>
         <property name="text">
-         <string>Mapping (U-Net 2D)</string>
+         <string>Restoration (U-Net 2D)</string>
         </property>
        </item>
       </widget>

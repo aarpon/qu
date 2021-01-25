@@ -38,7 +38,7 @@ class QuUNetMapperSettingsDialog(QDialog):
         self._settings = dataclasses.replace(settings)
 
         # Set up UI
-        uic.loadUi(_ui_folder_path / "dialogs" / "qu_unet_mapper_settings_dialog.ui", self)
+        uic.loadUi(_ui_folder_path / "dialogs" / "qu_unet_restorer_settings_dialog.ui", self)
 
         # Make sure to set validators where necessary
         self._set_validators()

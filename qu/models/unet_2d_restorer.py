@@ -23,40 +23,36 @@ import os
 import torch
 from monai.data import ArrayDataset, DataLoader, Dataset
 from monai.inferers import sliding_window_inference
-from monai.losses import GeneralizedDiceLoss
 from monai.metrics import DiceMetric
 from monai.networks.nets import UNet
 from monai.utils import set_determinism
-from monai.transforms import Activations, AddChannel, AsDiscrete, \
-    Compose, LoadImage, RandRotate90, RandSpatialCrop, \
-    ScaleIntensity, ToTensor
+from monai.transforms import AddChannel, Compose, LoadImage, \
+    RandRotate90, RandSpatialCrop, ToTensor, ScaleIntensityRange, ScaleIntensity, ToNumpy
 from natsort import natsorted
 from tifffile import TiffWriter
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
+from torch.nn import MSELoss, L1Loss
 
-from qu.data.manager import MaskType
-from qu.transform.extern.monai import ToOneHot
-from qu.transform.extern.monai import Identity, LoadMask
-from qu.ml.abstract_base_learner import AbstractBaseLearner
+from qu.losses.lap_pyramid_loss import LapLoss
+from qu.transform.extern.monai import Identity
+from qu.models.abstract_base_learner import AbstractBaseLearner
 from qu.transform import one_hot_stack_to_label_image
 
 
-class UNet2DSegmenter(AbstractBaseLearner):
-    """Segmenter based on the U-Net architecture."""
+class UNet2DRestorer(AbstractBaseLearner):
+    """Restorer based on the U-Net architecture."""
 
     def __init__(
             self,
-            mask_type: MaskType = MaskType.TIFF_LABELS,
             in_channels: int = 1,
-            out_channels: int = 3,
+            out_channels: int = 1,
             roi_size: Tuple[int, int] = (384, 384),
             num_epochs: int = 400,
             batch_sizes: Tuple[int, int, int, int] = (8, 1, 1, 1),
             num_workers: Tuple[int, int, int, int] = (4, 4, 1, 1),
             validation_step: int = 2,
             sliding_window_batch_size: int = 4,
-            class_names: Tuple[str, ...] = ("Background", "Object", "Border"),
             experiment_name: str = "",
             model_name: str = "best_model",
             seed: int = 4294967295,
@@ -65,12 +61,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
             stderr: TextIOWrapper = sys.stderr
     ):
         """Constructor.
-
-        @param mask_type: MaskType
-            Type of mask: defines file type, mask geometry and they way pixels
-            are assigned to the various classes.
-
-            @see qu.data.model.MaskType
 
         @param in_channels: int, optional: default = 1
             Number of channels in the input (e.g. 1 for gray-value images).
@@ -95,9 +85,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         @param sliding_window_batch_size: int, optional: default = 4
             Number of batches for sliding window inference during validation and prediction.
-
-        @param class_names: Tuple[str, ...], optional: default = ("Background", "Object", "Border")
-            Name of the classes for logging validation curves.
 
         @param experiment_name: str, optional: default = ""
             Name of the experiment that maps to the folder that contains training information (to
@@ -125,9 +112,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
         # Device (initialize as "cpu")
         self._device = "cpu"
 
-        # Mask type
-        self._mask_type = mask_type
-
         # Input and output channels
         self._in_channels = in_channels
         self._out_channels = out_channels
@@ -146,29 +130,24 @@ class UNet2DSegmenter(AbstractBaseLearner):
         self._validation_step = validation_step
         self._sliding_window_batch_size = sliding_window_batch_size
 
-        # Other parameters
-        self._class_names = out_channels * ["Unknown"]
-        for i in range(min(out_channels, len(class_names))):
-            self._class_names[i] = class_names[i]
-
         # Set monai seed
         set_determinism(seed=seed)
 
         # All file names
         self._train_image_names: list = []
-        self._train_mask_names: list = []
+        self._train_target_names: list = []
         self._validation_image_names: list = []
-        self._validation_mask_names: list = []
+        self._validation_target_names: list = []
         self._test_image_names: list = []
-        self._test_mask_names: list = []
+        self._test_target_names: list = []
 
         # Transforms
         self._train_image_transforms = None
-        self._train_mask_transforms = None
+        self._train_target_transforms = None
         self._validation_image_transforms = None
-        self._validation_mask_transforms = None
+        self._validation_target_transforms = None
         self._test_image_transforms = None
-        self._test_mask_transforms = None
+        self._test_target_transforms = None
         self._prediction_image_transforms = None
         self._validation_post_transforms = None
         self._test_post_transforms = None
@@ -210,18 +189,18 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         # Check that the data is set properly
         if len(self._train_image_names) == 0 or \
-                len(self._train_mask_names) == 0 or \
+                len(self._train_target_names) == 0 or \
                 len(self._validation_image_names) == 0 or \
-                len(self._validation_mask_names) == 0:
+                len(self._validation_target_names) == 0:
             self._message = "No training/validation data found."
             return False
 
-        if len(self._train_image_names) != len(self._train_mask_names) == 0:
-            self._message = "The number of training images does not match the number of training masks."
+        if len(self._train_image_names) != len(self._train_target_names) == 0:
+            self._message = "The number of training images does not match the number of training targets."
             return False
 
-        if len(self._validation_image_names) != len(self._validation_mask_names) == 0:
-            self._message = "The number of validation images does not match the number of validation masks."
+        if len(self._validation_image_names) != len(self._validation_target_names) == 0:
+            self._message = "The number of validation images does not match the number of validation targets."
             return False
 
         # Define the transforms
@@ -249,11 +228,11 @@ class UNet2DSegmenter(AbstractBaseLearner):
         self._best_model = model_file_name
 
         # Enter the main training loop
-        best_metric = -1
-        best_metric_epoch = -1
+        lowest_validation_loss = np.Inf
+        lowest_validation_epoch = -1
 
         epoch_loss_values = list()
-        metric_values = list()
+        validation_loss_values = list()
 
         # Initialize TensorBoard's SummaryWriter
         writer = SummaryWriter(experiment_name)
@@ -315,15 +294,9 @@ class UNet2DSegmenter(AbstractBaseLearner):
                 # Make sure not to update the gradients
                 with torch.no_grad():
 
-                    # Global metrics
-                    metric_sum = 0.0
-                    metric_count = 0
-                    metric = 0.0
-
-                    # Keep track of the metrics for all classes
-                    metric_sum_classes = self._out_channels * [0.0]
-                    metric_count_classes = self._out_channels * [0]
-                    metric_classes = self._out_channels * [0.0]
+                    # Global validation loss
+                    validation_loss_sum = 0.0
+                    validation_loss_count = 0
 
                     for val_data in self._validation_dataloader:
 
@@ -339,56 +312,35 @@ class UNet2DSegmenter(AbstractBaseLearner):
                         )
                         val_outputs = self._validation_post_transforms(val_outputs)
 
-                        # Compute overall metric
-                        value, not_nans = self._validation_metric(
-                            y_pred=val_outputs,
-                            y=val_labels
-                        )
-                        not_nans = not_nans.item()
-                        metric_count += not_nans
-                        metric_sum += value.item() * not_nans
+                        # Calculate the validation loss
+                        val_loss = self._training_loss_function(val_outputs, val_labels)
 
-                        # Compute metric for each class
-                        for c in range(self._out_channels):
-                            value_obj, not_nans = self._validation_metric(
-                                y_pred=val_outputs[:, c:c + 1],
-                                y=val_labels[:, c:c + 1]
-                            )
-                            not_nans = not_nans.item()
-                            metric_count_classes[c] += not_nans
-                            metric_sum_classes[c] += value_obj.item() * not_nans
+                        # Add to the current loss
+                        validation_loss_count += 1
+                        validation_loss_sum += val_loss.item()
 
-                    # Global metric
-                    metric = metric_sum / metric_count
-                    metric_values.append(metric)
-
-                    # Metric per class
-                    for c in range(self._out_channels):
-                        metric_classes[c] = metric_sum_classes[c] / metric_count_classes[c]
+                    # Global validation loss
+                    validation_loss = validation_loss_sum / validation_loss_count
+                    validation_loss_values.append(validation_loss)
 
                     # Print summary
-                    print(f"Global metric = {metric:.4f} ", file=self._stdout)
-                    for c in range(self._out_channels):
-                        print(f"Class '{self._class_names[c]}' metric = {metric_classes[c]:.4f} ", file=self._stdout)
+                    print(f"Validation loss = {validation_loss:.4f} ", file=self._stdout)
 
                     # Do we have the best metric so far?
-                    if metric > best_metric:
-                        best_metric = metric
-                        best_metric_epoch = epoch + 1
+                    if validation_loss < lowest_validation_loss:
+                        lowest_validation_loss = validation_loss
+                        lowest_validation_epoch = epoch + 1
                         torch.save(
                             self._model.state_dict(),
                             model_file_name
                         )
-                        print(f"New best global metric = {best_metric:.4f} at epoch: {best_metric_epoch}", file=self._stdout)
+                        print(f"New lowest validation loss = {lowest_validation_loss:.4f} at epoch: {lowest_validation_epoch}", file=self._stdout)
                         print(f"Saved best model '{Path(model_file_name).name}'", file=self._stdout)
 
                     # Add validation loss and metrics to log
-                    writer.add_scalar("val_mean_dice_loss", metric, epoch + 1)
-                    for c in range(self._out_channels):
-                        metric_name = f"val_{self._class_names[c].lower()}_metric"
-                        writer.add_scalar(metric_name, metric_classes[c], epoch + 1)
+                    writer.add_scalar("val_mean_loss", validation_loss, epoch + 1)
 
-        print(f"Training completed. Best_metric = {best_metric:.4f} at epoch: {best_metric_epoch}", file=self._stdout)
+        print(f"Training completed. Lowest validation loss = {lowest_validation_loss:.4f} at epoch: {lowest_validation_epoch}", file=self._stdout)
         writer.close()
 
         # Return success
@@ -470,22 +422,20 @@ class UNet2DSegmenter(AbstractBaseLearner):
                 )
                 test_outputs = self._test_post_transforms(test_outputs)
 
-                # Retrieve the image from the GPU (if needed)
-                pred = test_outputs.cpu().numpy().squeeze()
+                # The ToNumpy() transform already causes the Tensor
+                # to be gathered from the GPU to the CPU
+                pred = test_outputs.squeeze()
 
                 # Prepare the output file name
                 basename = os.path.splitext(os.path.basename(self._test_image_names[indx]))[0]
                 basename = basename.replace('train_', 'pred_')
 
-                # Convert to label image
-                label_img = self._prediction_to_label_tiff_image(pred)
-
                 # Save label image as tiff file
-                label_file_name = os.path.join(
+                pred_file_name = os.path.join(
                     str(target_folder),
                     basename + '.tif')
-                with TiffWriter(label_file_name) as tif:
-                    tif.save(label_img)
+                with TiffWriter(pred_file_name) as tif:
+                    tif.save(pred)
 
                 # Inform
                 print(f"Saved {str(target_folder)}/{basename}.tif", file=self._stdout)
@@ -574,22 +524,20 @@ class UNet2DSegmenter(AbstractBaseLearner):
                 )
                 prediction_outputs = self._prediction_post_transforms(prediction_outputs)
 
-                # Retrieve the image from the GPU (if needed)
-                pred = prediction_outputs.cpu().numpy().squeeze()
+                # The ToNumpy() transform already causes the Tensor
+                # to be gathered from the GPU to the CPU
+                pred = prediction_outputs.squeeze()
 
                 # Prepare the output file name
                 basename = os.path.splitext(os.path.basename(self._prediction_image_names[indx]))[0]
                 basename = "pred_" + basename
 
-                # Convert to label image
-                label_img = self._prediction_to_label_tiff_image(pred)
-
                 # Save label image as tiff file
-                label_file_name = os.path.join(
+                pred_file_name = os.path.join(
                     str(target_folder),
                     basename + '.tif')
-                with TiffWriter(label_file_name) as tif:
-                    tif.save(label_img)
+                with TiffWriter(pred_file_name) as tif:
+                    tif.save(pred)
 
                 # Inform
                 print(f"Saved {str(target_folder)}/{basename}.tif", file=self._stdout)
@@ -643,15 +591,15 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         # Training data
         self._train_image_names = train_image_names
-        self._train_mask_names = train_mask_names
+        self._train_target_names = train_mask_names
 
         # Validation data
         self._validation_image_names = val_image_names
-        self._validation_mask_names = val_mask_names
+        self._validation_target_names = val_mask_names
 
         # Test data
         self._test_image_names = test_image_names
-        self._test_mask_names = test_mask_names
+        self._test_target_names = test_mask_names
 
     @staticmethod
     def _prediction_to_label_tiff_image(prediction):
@@ -671,51 +619,34 @@ class UNet2DSegmenter(AbstractBaseLearner):
         """Define and initialize all data transforms.
 
           * training set images transform
-          * training set masks transform
+          * training set targets transform
           * validation set images transform
-          * validation set masks transform
+          * validation set targets transform
           * validation set images post-transform
           * test set images transform
-          * test set masks transform
+          * test set targets transform
           * test set images post-transform
           * prediction set images transform
           * prediction set images post-transform
 
         @return True if data transforms could be instantiated, False otherwise.
         """
-
-        if self._mask_type == MaskType.UNKNOWN:
-            raise Exception("The mask type is unknown. Cannot continue!")
-
-        # Depending on the mask type, we will need to adapt the Mask Loader
-        # and Transform. We start by initializing the most common types.
-        MaskLoader = LoadMask(self._mask_type)
-        MaskTransform = Identity
-
-        # Adapt the transform for the LABEL types
-        if self._mask_type == MaskType.TIFF_LABELS or self._mask_type == MaskType.NUMPY_LABELS:
-            MaskTransform = ToOneHot(num_classes=self._out_channels)
-
-        # The H5_ONE_HOT type requires a different loader
-        if self._mask_type == MaskType.H5_ONE_HOT:
-            # MaskLoader: still missing
-            raise Exception("HDF5 one-hot masks are not supported yet!")
-
         # Define transforms for training
         self._train_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
-                ScaleIntensity(),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 RandSpatialCrop(self._roi_size, random_size=False),
                 RandRotate90(prob=0.5, spatial_axes=(0, 1)),
                 ToTensor()
             ]
         )
-        self._train_mask_transforms = Compose(
+        self._train_target_transforms = Compose(
             [
-                MaskLoader,
-                MaskTransform,
+                LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
+                AddChannel(),
                 RandSpatialCrop(self._roi_size, random_size=False),
                 RandRotate90(prob=0.5, spatial_axes=(0, 1)),
                 ToTensor()
@@ -726,15 +657,16 @@ class UNet2DSegmenter(AbstractBaseLearner):
         self._validation_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
-                ScaleIntensity(),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 ToTensor()
             ]
         )
-        self._validation_mask_transforms = Compose(
+        self._validation_target_transforms = Compose(
             [
-                MaskLoader,
-                MaskTransform,
+                LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
+                AddChannel(),
                 ToTensor()
             ]
         )
@@ -743,15 +675,16 @@ class UNet2DSegmenter(AbstractBaseLearner):
         self._test_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
-                ScaleIntensity(),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 ToTensor()
             ]
         )
-        self._test_mask_transforms = Compose(
+        self._test_target_transforms = Compose(
             [
-                MaskLoader,
-                MaskTransform,
+                LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
+                AddChannel(),
                 ToTensor()
             ]
         )
@@ -760,7 +693,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
         self._prediction_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
-                ScaleIntensity(),
                 AddChannel(),
                 ToTensor()
             ]
@@ -769,22 +701,21 @@ class UNet2DSegmenter(AbstractBaseLearner):
         # Post transforms
         self._validation_post_transforms = Compose(
             [
-                Activations(softmax=True),
-                AsDiscrete(threshold_values=True)
+                Identity()
             ]
         )
 
         self._test_post_transforms = Compose(
             [
-                Activations(softmax=True),
-                AsDiscrete(threshold_values=True)
+                ToNumpy(),
+                ScaleIntensity(0, 65535)
             ]
         )
 
         self._prediction_post_transforms = Compose(
             [
-                Activations(softmax=True),
-                AsDiscrete(threshold_values=True)
+                ToNumpy(),
+                ScaleIntensity(0, 65535)
             ]
         )
 
@@ -805,11 +736,11 @@ class UNet2DSegmenter(AbstractBaseLearner):
             pin_memory = torch.cuda.is_available()
 
         if len(self._train_image_names) == 0 or \
-                len(self._train_mask_names) == 0 or \
+                len(self._train_target_names) == 0 or \
                 len(self._validation_image_names) == 0 or \
-                len(self._validation_mask_names) == 0 or \
+                len(self._validation_target_names) == 0 or \
                 len(self._test_image_names) == 0 or \
-                len(self._test_mask_names) == 0:
+                len(self._test_target_names) == 0:
 
             self._train_dataset = None
             self._train_dataloader = None
@@ -824,8 +755,8 @@ class UNet2DSegmenter(AbstractBaseLearner):
         self._train_dataset = ArrayDataset(
             self._train_image_names,
             self._train_image_transforms,
-            self._train_mask_names,
-            self._train_mask_transforms
+            self._train_target_names,
+            self._train_target_transforms
         )
         self._train_dataloader = DataLoader(
             self._train_dataset,
@@ -840,8 +771,8 @@ class UNet2DSegmenter(AbstractBaseLearner):
         self._validation_dataset = ArrayDataset(
             self._validation_image_names,
             self._validation_image_transforms,
-            self._validation_mask_names,
-            self._validation_mask_transforms
+            self._validation_target_names,
+            self._validation_target_transforms
         )
         self._validation_dataloader = DataLoader(
             self._validation_dataset,
@@ -856,8 +787,8 @@ class UNet2DSegmenter(AbstractBaseLearner):
         self._test_dataset = ArrayDataset(
             self._test_image_names,
             self._test_image_transforms,
-            self._test_mask_names,
-            self._test_mask_transforms
+            self._test_target_names,
+            self._test_target_transforms
         )
         self._test_dataloader = DataLoader(
             self._test_dataset,
@@ -959,12 +890,8 @@ class UNet2DSegmenter(AbstractBaseLearner):
     def _define_training_loss(self) -> None:
         """Define the loss function."""
 
-        self._training_loss_function = GeneralizedDiceLoss(
-            include_background=True,
-            to_onehot_y=False,
-            softmax=True,
-            batch=True,
-        )
+        # Use the MAE loss
+        self._training_loss_function = L1Loss()
 
     def _define_optimizer(
             self,
