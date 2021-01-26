@@ -688,15 +688,6 @@ class UNet2DRestorer(AbstractBaseLearner):
             ]
         )
 
-        # Define transforms for prediction
-        self._prediction_image_transforms = Compose(
-            [
-                LoadImage(image_only=True),
-                AddChannel(),
-                ToTensor()
-            ]
-        )
-
         # Post transforms
         self._validation_post_transforms = Compose(
             [
@@ -705,13 +696,6 @@ class UNet2DRestorer(AbstractBaseLearner):
         )
 
         self._test_post_transforms = Compose(
-            [
-                ToNumpy(),
-                ScaleIntensity(0, 65535)
-            ]
-        )
-
-        self._prediction_post_transforms = Compose(
             [
                 ToNumpy(),
                 ScaleIntensity(0, 65535)
@@ -813,6 +797,7 @@ class UNet2DRestorer(AbstractBaseLearner):
         self._prediction_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
+                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
                 AddChannel(),
                 ToTensor()
             ]

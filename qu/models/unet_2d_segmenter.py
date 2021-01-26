@@ -756,16 +756,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
             ]
         )
 
-        # Define transforms for prediction
-        self._prediction_image_transforms = Compose(
-            [
-                LoadImage(image_only=True),
-                ScaleIntensity(),
-                AddChannel(),
-                ToTensor()
-            ]
-        )
-
         # Post transforms
         self._validation_post_transforms = Compose(
             [
@@ -775,13 +765,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
         )
 
         self._test_post_transforms = Compose(
-            [
-                Activations(softmax=True),
-                AsDiscrete(threshold_values=True)
-            ]
-        )
-
-        self._prediction_post_transforms = Compose(
             [
                 Activations(softmax=True),
                 AsDiscrete(threshold_values=True)
