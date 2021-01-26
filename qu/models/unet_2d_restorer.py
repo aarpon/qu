@@ -23,7 +23,6 @@ import os
 import torch
 from monai.data import ArrayDataset, DataLoader, Dataset
 from monai.inferers import sliding_window_inference
-from monai.metrics import DiceMetric
 from monai.networks.nets import UNet
 from monai.utils import set_determinism
 from monai.transforms import AddChannel, Compose, LoadImage, \
@@ -216,9 +215,6 @@ class UNet2DRestorer(AbstractBaseLearner):
 
         # Define the optimizer (with default parameters)
         self._define_optimizer()
-
-        # Define the validation metric
-        self._define_validation_metric()
 
         # Define experiment name and model name
         experiment_name, model_file_name = self._prepare_experiment_and_model_names()
@@ -928,14 +924,6 @@ class UNet2DRestorer(AbstractBaseLearner):
             learning_rate,
             weight_decay=weight_decay,
             amsgrad=True
-        )
-
-    def _define_validation_metric(self):
-        """Define the metric for validation function."""
-
-        self._validation_metric = DiceMetric(
-            include_background=True,
-            reduction="mean"
         )
 
     def _prepare_experiment_and_model_names(self) -> Tuple[str, str]:
