@@ -225,7 +225,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
             return False
 
         # Define the transforms
-        self._define_transforms()
+        self._define_training_transforms()
 
         # Define the datasets and data loaders
         self._define_training_data_loaders()
@@ -667,8 +667,8 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         return label_img
 
-    def _define_transforms(self):
-        """Define and initialize all data transforms.
+    def _define_training_transforms(self):
+        """Define and initialize all training data transforms.
 
           * training set images transform
           * training set masks transform
@@ -870,6 +870,32 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         return True
 
+    def _define_prediction_transforms(self):
+        """Define and initialize all prediction data transforms.
+
+          * prediction set images transform
+          * prediction set images post-transform
+
+        @return True if data transforms could be instantiated, False otherwise.
+        """
+
+        # Define transforms for prediction
+        self._prediction_image_transforms = Compose(
+            [
+                LoadImage(image_only=True),
+                ScaleIntensity(),
+                AddChannel(),
+                ToTensor(),
+            ]
+        )
+
+        self._prediction_post_transforms = Compose(
+            [
+                Activations(softmax=True),
+                AsDiscrete(threshold_values=True),
+            ]
+        )
+
     def _define_prediction_data_loaders(
             self,
             prediction_folder_path: Union[Path, str]
@@ -905,6 +931,9 @@ class UNet2DSegmenter(AbstractBaseLearner):
             self._prediction_dataloader = None
 
             return False
+
+        # Define the transforms
+        self._define_prediction_transforms()
 
         # Prediction
         self._prediction_dataset = Dataset(
