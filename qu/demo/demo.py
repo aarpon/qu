@@ -47,7 +47,7 @@ def get_demo_segmentation_dataset():
     # Is the zip archive already present?
     archive_found = False
     if (data_folder / "demo_segmentation.zip").is_file():
-        if (data_folder / "demo_segmentation.zip").stat().st_size == 81367923:
+        if (data_folder / "demo_segmentation.zip").stat().st_size == 69792734:
             archive_found = True
         else:
             (data_folder / "demo_segmentation.zip").unlink()
@@ -103,7 +103,7 @@ def get_demo_restoration_dataset():
     # Is the zip archive already present?
     archive_found = False
     if (data_folder / "demo_restoration.zip").is_file():
-        if (data_folder / "demo_restoration.zip").stat().st_size == 107723742:
+        if (data_folder / "demo_restoration.zip").stat().st_size == 113365217:
             archive_found = True
         else:
             (data_folder / "demo_restoration.zip").unlink()
