@@ -31,7 +31,7 @@ from monai.networks.nets import HighResNet
 from monai.utils import set_determinism
 from monai.transforms import Activations, AddChannel, AsDiscrete, \
     Compose, LoadImage, RandRotate90, RandSpatialCrop, \
-    ScaleIntensity, ToTensor
+    RandGaussianNoise, ScaleIntensity, ToTensor
 from natsort import natsorted
 from tifffile import TiffWriter
 from torch.optim import Adam
@@ -59,7 +59,7 @@ class ResnetSegmenter(AbstractBaseLearner):
             validation_step: int = 2,
             sliding_window_batch_size: int = 4,
             class_names: Tuple[str, ...] = ("Background", "Object", "Border"),
-            experiment_name: str = "",
+            experiment_name: str = "HighResNet",
             model_name: str = "best_model",
             seed: int = 4294967295,
             working_dir: str = '.',
@@ -711,6 +711,7 @@ class ResnetSegmenter(AbstractBaseLearner):
                 AddChannel(),
                 RandSpatialCrop(self._roi_size, random_size=False),
                 RandRotate90(prob=0.5, spatial_axes=(0, 1)),
+                RandGaussianNoise(prob=0.5, mean=0., std=0.2),
                 ToTensor()
             ]
         )
@@ -720,6 +721,7 @@ class ResnetSegmenter(AbstractBaseLearner):
                 MaskTransform,
                 RandSpatialCrop(self._roi_size, random_size=False),
                 RandRotate90(prob=0.5, spatial_axes=(0, 1)),
+                RandGaussianNoise(prob=0.5, mean=0., std=0.2),
                 ToTensor()
             ]
         )

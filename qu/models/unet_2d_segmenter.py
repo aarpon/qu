@@ -60,7 +60,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
             validation_step: int = 2,
             sliding_window_batch_size: int = 4,
             class_names: Tuple[str, ...] = ("Background", "Object", "Border"),
-            experiment_name: str = "",
+            experiment_name: str = "Unet",
             model_name: str = "best_model",
             seed: int = 4294967295,
             working_dir: str = '.',
