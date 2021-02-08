@@ -17,7 +17,7 @@
 import cv2
 import os
 from statistics import mean, stdev
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, f1_score
 import seaborn as sns
 from pathlib import PurePath
 import matplotlib.pyplot as plt
@@ -25,145 +25,221 @@ import numpy as np
 from PIL import Image
 
 
+
 # batch assessment
 
 class SegmentationDiagnostic():
-    """creates a segmentation dignostic that analyses quality
-    of (one or more) predictions compared to ground truth"""
+    """creates a segmentation diagnostic that analyses quality
+    of (one or more) prediction batches compared to ground truth"""
 
     def __init__(self, gt_fold_path, pred_fold_path=None):
 
-        # ground truth folder path
-        self.gt_folder = gt_fold_path
-        # ground truth file list
-        self.gt_file_list = []
-        self.gt_file_num = len(self.gt_file_list)
-        self.gt_images = []
+        # storage for ground truth attributes
+        # "infos" include paths, file list and number of files
+        # "metrics" contains:
+        #  - cell contours per image
+        #  - dist_transform per image
+        #  - cell count per image
+        #  - cell size per image
 
-        # storage of metrics for ground truth (useful when comparing multiple predictions)
-        self.gt_cnts = []
-        self.gt_distance_transform = []
-        self.gt_cell_count = []
-        self.gt_cell_size = []
+        self.gt = {"infos": {},
+                   "metrics": {}}
 
-        # prediction(s) folder path & name
-        self.prediction_paths = []
-        self.prediction_names = []
-        self.prediction_file_names = []
+        # prediction is a list of dictionary with len== # number of prediction batches to analyse\
+        # each dictionary includes path, experiment_name, file_names, file_num
+        self.pred_infos = []
 
-        # metrics evaluation output
-        self.metrics_per_image = []
+        # image level metrics for each batch: a list of dictionaries (one per batch) containing
+        # - contours
+        # - dist_transforms
 
-        # add predictions
+        # - cell count per image
+        # - cell size per image
+
+        # - iou per image
+        # - confusion matrix per image
+        self.pred_metrics = []
+
+        # batch level predictions: a list of dictionaries (one per prediction batch) containing:\
+        # - cell count p_value
+        # - cell size p_value
+        # - Iou average
+        # - f1 score total
+
+        # dictionary of subplots for each metric (for all batches)
+        self.pred_batch_metrics = {"cell_count_plot": None,
+                                   "cell_size_plot": None,
+                                   "iou_plot": None,
+                                   "f-score_plot": None}
+
+        # load gt infos
+        self.gt["infos"] = self.load_batch_infos(gt_fold_path, "ground_truth")
+
+        #  load predictions infos
         if pred_fold_path:
-            if isinstance(pred_fold_path, list):
-                print("adding predictions")
-                self.add_predictions(*pred_fold_path)
-            else:
-                self.add_predictions(pred_fold_path)
+            if not isinstance(pred_fold_path, list):
+                pred_fold_path = [pred_fold_path]
+            self.pred_infos = [self.load_batch_infos(path) for path in pred_fold_path]
 
-    def add_predictions(self, *args) -> None:
-        """loads prediction(s) folder and sets names"""
-        for n, fold in enumerate(args):
-            print(f"adding predictions folder {fold}")
-            if os.path.exists(fold) and (len(os.listdir(fold)) > 0):
-                self.prediction_paths.append(fold)
-                self.prediction_names.append(PurePath(fold).name)
-                self.prediction_file_names.append(sorted(os.listdir(fold)))
-            else:
-                assert f"FileNotFoundError: check the prediction folder {fold}"
-            print(f"prediction folder {fold} has {len(self.prediction_file_names[0])} images")
+    def load_batch_infos(self, path, exp_name=None) -> dict:
+        """pre_loads batch of images, setting name and number
+        uses folder path"""
+        new_info_dic = {"path": None,
+                        "exp_name": None,
+                        "file_names": [],
+                        "file_num": None}
 
-    def calc_image_level_metrics(self, pred_num=0, verbose=False) -> dict:
+        if os.path.exists(path) and (len(os.listdir(path)) > 0):
+            info_dic = new_info_dic.copy()
+            info_dic["path"] = path
+            info_dic["exp_name"] = exp_name if exp_name else os.path.basename(path)
+            info_dic["file_names"] = sorted(os.listdir(path))
+            info_dic["file_num"] = len(os.listdir(path))
+            return info_dic
+        else:
+            assert f"FileNotFoundError: check the folder {path}"
+            return None
+
+    def calc_image_metrics(self, pred_num=0, verbose=False) -> dict:
         """Evaluates segmentation quality in batch of images (one prediction).
+        pred_num correspond to the batch number: -1 indicates ground truth
+
         @returns dictionary with:
-        - cell count per image,
-        - cell sizes per image,
-        - intersection over union score per image,
-        - confusion matrix per image"""
-        # load gt images if needed
-        if not self.gt_images:
-            self._load_gt_images()
-        # check for missing files in prediction
+        - cell contours per image,
+        - dist_transform of foreground
+        - cell count per image
+        - cell sizes per image"""
+        new_metric_dic = {"cell_contours": [None],
+                          "dist_transforms": [None],
+                          "cell_count": [None],
+                          "cell_sizes": [None]}
 
-        # evaluate contours and distance transform for ground truth
-        if (not self.gt_cnts) or (not self.gt_distance_transform):
-            print("evaluating contours")
-            for img in self.gt_images:
-                cnts, dist = self._get_contours(img)
-                self.gt_cnts.append(cnts[0])
-                self.gt_distance_transform.append(dist)
-                self.gt_cell_count.append(self._count_cells(cnts[0]))
-                self.gt_cell_size.append(self._get_cell_size(img, cnts, dist))
-        # load predictions with the same id as gt images
-        missing_files = []
-        clean_gt_fnames = sorted([f_name.split("_")[-1] for f_name in self.gt_file_list])
-        clean_pr_fnames = sorted([f_name.split("_")[-1] for f_name in self.prediction_file_names[pred_num]])
+        infos_dic = self.pred_infos[pred_num] if pred_num >= 0 else self.gt['infos']
 
-        missing_files = [f for f in clean_gt_fnames if f not in clean_pr_fnames]
-        if len(missing_files) > 0:
-            print(f"{len(missing_files)} missing images found: {missing_files} ")
+        # check if batch infos are loaded
+        if not infos_dic["path"]:
+            assert f" FileNotFoundError, no information available. \
+            Maybe execute load_batch_infos first? "
 
-        # detect segmentation errors per image
-        cell_count = []
-        cell_size = []
-        ious = []
-        conf_matrix = []
-
-        # The following cycle extracts image or object level metrics from the prediction batch
-        for n in range(self.gt_file_num):
+        # Scan through ech image
+        metric_dic = new_metric_dic.copy()
+        for n, f in range(infos_dic['file_names']):
             if verbose >= 2:
-                print(f"number of unique objects: GT - {len(self.gt_cnts[n])}, PRED - {len(pr_cnts[0])} \n")
+                print(f"evaluating image {f}")
 
-            tr_img = self.gt_images[n]
-            pred_img_path = os.path.join(self.prediction_paths[pred_num], self.prediction_file_names[pred_num][n])
-            pr_img = np.array(Image.open(pred_img_path))
+            # Load img
+            img_path = os.path.join(infos_dic['path'], f)
+            img = np.array(Image.open(img_path))
+
+            # Check if image is indeed segmentation
+            if (len(np.unique(img)) > 10) or \
+                    (img.dtype != int):
+                assert "ValueError: image is not a segmentation mask"
 
             # get contours and dist_transform
-            pr_cnts, pr_dist_trans = self._get_contours(pr_img)
+            (cnts, _), dist_trans = self._get_contours(img)
+            metric_dic["cell_contours"][n] = cnts
+            metric_dic["dist_trasnforms"][n] = dist_trans
 
             # count distinct objects / cells
-            cell_count.append(self._count_cells(pr_cnts[0]))
+            metric_dic['cell_count'][n] = self._count_cells(cnts)
+            if verbose >= 2:
+                print(f"number of unique objects: {self._count_cells(cnts)} \n")
 
             # get size distribution
-            pr_sizes = self._get_cell_size(pr_img, pr_cnts, pr_dist_trans)
-            cell_size.append(pr_sizes)
-            # compute intersection over union
-            ious.append(self._int_over_union(tr_img, pr_img))
-            # get confusion matrix
-            single_conf = confusion_matrix(tr_img.flatten(), pr_img.flatten())
-            conf_matrix.append(single_conf)
-            if pred_num == 0:
-                self.metrics_per_image = [{"cell_count": cell_count, "cell_size": cell_size, "ious": ious,
-                                           "conf_matrix": conf_matrix}]
-            else:
-                self.metrics_per_image[pred_num] = ({"cell_count": cell_count, "cell_size": cell_size, "ious": ious,
-                                                     "conf_matrix": conf_matrix})
+            metric_dic["sizes"][n] = self._get_cell_size(img, cnts, dist_trans)
+
+            # check coherence
+            if (len(metric_dic["cell_sizes"]) != infos_dic["file_num"]) and \
+                    (metric_dic["cell_contours"][0] == None):
+                assert "Problem with analysis, missing metrics"
             return None
-    def batch_level_metrics(self, pred_num=0):
+        else:
+            return metric_dic
+
+    def calc_advanced_image_metrics(self, pred_num, verbose=False):
+        """calculates advanced image level metrics that need comparison between ground truth
+        and prediction batches """
+        new_advanced_metric_dic = {
+            "ious": [None],
+            "conf_matrix": [None]
+        }
+        # get infos + metrics for current prediction and gt
+        gt_infos = self.gt['infos']
+        gt_metrics = self.gt["metrics"]
+        pred_infos = self.pred_infos[pred_num]
+        pred_metrics = self.pred_metrics[pred_num]
+
+        # check that ground truth metrics are available
+        if (not gt_metrics) or (not gt_metrics["cell_contours"]):
+            gt_metrics = self.calc_image_metrics(-1)
+
+        # check that gt files and pred files are the same if not filter gt files
+        clean_gt_names = sorted([f_name.split("_")[-1] for f_name in gt_infos["file_names"]])
+        clean_pred_names = sorted([f_name.split("_")[-1] for f_name in pred_infos["file_names"]])
+
+        if (gt_infos["file_num"] != pred_infos["file_num"]) or clean_gt_names != clean_pred_names:
+            selected_gt_files = [gt_file for gt_file in sorted(gt_infos["file_names"]) \
+                                 if gt_file.split("_")[-1] in pred_infos["file_names"]]
+
+            selected_pred_files = [pr_file for pr_file in sorted(pred_infos['file_names']) \
+                                   if pr_file.split("_")[-1] in gt_infos["file_name"]]
+        else:
+            selected_gt_files = gt_infos["file_names"]
+            selected_pred_files = pred_infos["file_names"]
+
+        # Scan through ech image
+        advanced_metric = new_advanced_metric_dic.copy()
+        for n, (gt_file, pred_file) in enumerate(zip(selected_gt_files, selected_pred_files)):
+            # Load images
+            gt_img_path = os.path.join(gt_infos['path'], gt_file)
+            gt_img = np.array(Image.open(gt_img_path))
+            pred_img_path = os.path.join(pred_infos['path'], pred_file)
+            pred_img = np.array(Image.open(pred_img_path))
+
+            # calc_int_over_union
+            advanced_metric['ious'].append(self._int_over_union(gt_img, pred_img))
+            # get confusion matrix
+            single_conf = confusion_matrix(gt_img.flatten(), pred_img.flatten())
+            advanced_metric['conf_matrix'].append(single_conf)
+            return advanced_metric
+
+    def calc_batch_metrics(self, pred_num=0):
+        """batch level metrics comparing ground truth and prediction"""
+
+        batch_metrics = {"cell_count_p": [None],
+                                "cell_size_p": [None],
+                                "iou_mean": [None],
+                                "f1_score": [None]}
+
+        gt_metrics = self.gt["metrics"]
+        # check that all ground truth metrics have been calculated:
+        if not gt_metrics["cell_count"] or (not gt_metrics["cell_count"][0]) or:
+            gt_metrics = self.calc_image_metrics(-1, "gt") }
+
+        # prediction image level metrics
         try:
-            batch_metrics = self.metrics_per_image[pred_num]
+            pred_metrics = self.pred_metrics[pred_num]
         except IndexError:
-            self.calc_image_level_metrics(pred_num)
-            batch_metrics = self.metrics_per_image[pred_num]
+            pred_metrics={**self.calc_image_metrics(pred_num), **self.calc_advanced_image_metrics(pred_num)}
 
         # assess difference in cell count
-        gt_count = self.gt_cell_count
-        pr_count = batch_metrics["cell_count"]
-        cell_count_p_value = self.run_permutation_test(gt_count, pr_count)
-        print("cell_count_p_value", cell_count_p_value)
+        gt_count = gt_metrics['cell_count']
+        pr_count = pred_metrics["cell_count"]
+        batch_metrics["cell_count_p"] = self.run_permutation_test(gt_count, pr_count)
+        print("cell_count_p_value", batch_metrics["cell_count_p"],"\n")
 
         # assess difference in cell sizes
-        gt_sizes = self.gt_cell_size.flatten()
-        pr_sizes = batch_metrics['cell_size'].flatten()
-        cell_size_p_value = self.run_permutation_test(gt_sizes, pr_sizes)
-        print(cell_size_p_value)
+        gt_sizes = gt_metrics['cell_size'].flatten()
+        pr_sizes = pred_metrics['cell_size'].flatten()
+        batch_metrics["cell_size_p"] = self.run_permutation_test(gt_sizes, pr_sizes)
+        print("cell_size_p_value:",batch_metrics["cell_size_p"], "\n")
 
         # calc average iou
-        mean_iou = batch_metrics['ious'].mean()
+        batch_metrics["mean_iou"] = pred_metrics['iou'].mean()
 
         # calc f value
-        conf_array = batch_metrics["conf_matrix"].shape
+        batch_metrics["f1_score"] = self._calc_batch_f1score(pred_num)
 
         # if verbose:
         #     # create plots on errors
@@ -208,7 +284,11 @@ class SegmentationDiagnostic():
 
     # internal methods
     def _load_gt_images(self):
-        """load and check gt images"""
+        """
+        load and check
+        gt
+        images
+        """
         gt_file_list = sorted(os.listdir(self.gt_folder))
         for file in gt_file_list:
             image_full_path = os.path.join(self.gt_folder, file)
@@ -224,9 +304,11 @@ class SegmentationDiagnostic():
         print(f"imported {self.gt_file_num} images out of {len(os.listdir(self.gt_folder))}")
 
     def _get_contours(self, img) -> object:
-        """get contours of  distinct objects in mask (ground truth or presentation)
-        @param: img - 2d array with 0-3 values
+        """ get contours of distinct objects in mask
+        @param: img - 2d array with int values
+
         @returns tuple with contour information, dist_transform array"""
+
         if np.max(img) != 255:
             img = np.array(img * (255 / np.max(img)), dtype=np.uint8)
 
@@ -244,12 +326,14 @@ class SegmentationDiagnostic():
         """
         return len(cnts[0])
 
+
     def _get_cell_size(self, img, cnts, dist_transform) -> list:
-        """get cell size distribution in pixels
-        @param: img - 2d array with 0-3 values
-        @param: cnts - array with contour information (from _get_contours)
-        @param: dist_transform - dist transform array (from _get_contours)
-        @returns list of cell sizes  """
+        """ get cell size distribution in pixels
+        @param : img - 2d array with 0 - 3 values
+        @param : cnts - array with contour information (from _get_contours)
+        @param : dist_transform - dist transform array( from _get_contours)
+        @returns list of cell sizes
+        """
 
         size_list = []
         for cnt in cnts[0]:
@@ -260,54 +344,54 @@ class SegmentationDiagnostic():
             size_list.append(int(max_size))
         return size_list
 
-    def _detect_partial_segmentation(self, img, cnts, dist_transform) -> list:
-        """ evaluate prediction quality of contour (class 2) vs actual cell (class 1)
-        @param: img - 2d array with 0-3 values
-        @param: cnts - array with contour information (from _get_contours)
-        @param: dist_transform - dist transform array (from _get_contours)
-        @returns count of wrong cells
-        """
-        size_list = []
-        problem_list = []
-        for cnt in cnts[0]:
-            bbox = cv2.boundingRect(cnt)
-            bbox_remapped = [bbox[1], bbox[1] + bbox[3], bbox[0], bbox[0] + bbox[2]]
-            aoi_dist = dist_transform[bbox_remapped[0]: bbox_remapped[1],
-                       bbox_remapped[2]: bbox_remapped[3]]
-            aoi = img[bbox_remapped[0]: bbox_remapped[1],
-                  bbox_remapped[2]: bbox_remapped[3]]
-            contour = np.ma.masked_where(aoi_dist > 2, aoi)
-            inner = np.ma.masked_where(aoi_dist <= 2, aoi)
-        if (1 in np.ma.unique(contour)) or (1 not in np.ma.unique(inner)):
-            problem_list.append(cnt)
+        def _detect_partial_segmentation(self, img, cnts, dist_transform) -> list:
+            """ evaluate prediction quality of contour (class 2) vs actual cell ( class 1)
+                @ param: img - 2d array with 0 - 3 values
+                @ param: cnts - array with contour information (from _get_contours)
+                @ param: dist_transform - dist array (from _get_contours)
+                @returns count of wrong cells
+            """
+            size_list = []
+            problem_list = []
+            for cnt in cnts[0]:
+                bbox = cv2.boundingRect(cnt)
+                bbox_remapped = [bbox[1], bbox[1] + bbox[3], bbox[0], bbox[0] + bbox[2]]
+                aoi_dist = dist_transform[bbox_remapped[0]: bbox_remapped[1],
+                           bbox_remapped[2]: bbox_remapped[3]]
+                aoi = img[bbox_remapped[0]: bbox_remapped[1],
+                      bbox_remapped[2]: bbox_remapped[3]]
+                contour = np.ma.masked_where(aoi_dist > 2, aoi)
+                inner = np.ma.masked_where(aoi_dist <= 2, aoi)
+            if (1 in np.ma.unique(contour)) or (1 not in np.ma.unique(inner)):
+                problem_list.append(cnt)
 
-        return problem_list
+            return problem_list
 
-    def _int_over_union(self, img, img2) -> list:
-        """computes intersection over union metric, exclusing areas with false positives
-        @param: img - 2d array with 0-3 values (ground truth)
-        @param: img2 - 2d array with 0-3 values (prediction)
-        """
+        def _int_over_union(self, img, img2) -> list:
+            """ computes intersection over union metric, excluding areas with false positives
+            @ param: img - 2d array with 0 - 3 values (ground truth)
+            @ param: img2 - 2d array with 0 - 3 values (prediction)
+            """
 
-        inters = img & img2
-        union = img + img2
+            inters = img & img2
+            union = img + img2
 
-        iou = np.sum(inters > 0) / np.sum(union > 0)
+            iou = np.sum(inters > 0) / np.sum(union > 0)
 
-        return (iou)
+            return (iou)
 
-    def _run_permutation_test(self, dist1, dist2, num_samples=1000):
-        delta = abs(dist1.mean() - dist2.mean())
-        pooled = dist1 + dist2
-        estimates = []
-        for _ in range(num_samples):
-            np.random.shuffle(pooled)
-            starZ = pooled[:len(dist1)]
-            starY = pooled[-len(dist2):]
-            estimates.append(abs(starZ.mean() - starY.mean()))
-        diffCount = len(np.where(estimates <= delta)[0])
-        hat_asl_perm = 1.0 - (float(diffCount) / float(num_samples))
-        return hat_asl_perm
+        def _run_permutation_test(self, dist1, dist2, num_samples=1000):
+            delta = abs(dist1.mean() - dist2.mean())
+            pooled = dist1 + dist2
+            estimates = []
+            for _ in range(num_samples):
+                np.random.shuffle(pooled)
+                starZ = pooled[:len(dist1)]
+                starY = pooled[-len(dist2):]
+                estimates.append(abs(starZ.mean() - starY.mean()))
+            diffCount = len(np.where(estimates <= delta)[0])
+            hat_asl_perm = 1.0 - (float(diffCount) / float(num_samples))
+            return hat_asl_perm
 
 
 if __name__ == "__main__":
@@ -317,10 +401,13 @@ if __name__ == "__main__":
 
     pred_fold_path = "/home/matt/.qu/data/demo_segmentation/UNET_preds"
     dig = SegmentationDiagnostic(gt_fold_path, pred_fold_path)
-    dig._load_gt_images()
-    dig.add_predictions()
-    print(dig.gt_folder, dig.gt_file_list)
-    print(np.array(dig.gt_images).shape)
-    print(dig.prediction_names)
-    print(dig.prediction_file_names)
-    dig.calc_image_level_metrics()
+    print(dig.gt)
+    print(dig.pred_infos)
+    print(dig.gt['infos'])
+    # for k,v in dig.metrics_per_image[0].items():
+    #     print(k)
+    #     print(v)
+    #     print("\n")
+    #
+    # print("checking cell count")
+    # print()
