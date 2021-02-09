@@ -380,10 +380,17 @@ class QuMainWidget(QWidget):
     def _on_select_input_for_prediction(self):
         """Select input folder for prediction."""
 
+        default_folder = str(
+            self._data_manager.root_data_path if
+            self._data_manager.root_data_path is not None else Path(".")
+        )
+
         # Ask the user to pick a folder
         input_dir = QFileDialog.getExistingDirectory(
-            None,
-            "Select Prediction Input Directory..."
+            self,
+            "Select Prediction Input Directory...",
+            default_folder,
+            QFileDialog.ShowDirsOnly
         )
         if input_dir == '':
             # The user cancelled the selection
@@ -402,10 +409,16 @@ class QuMainWidget(QWidget):
     def _on_select_model_for_prediction(self):
         """Select model for prediction."""
 
+        default_folder = str(
+            self._data_manager.root_data_path / "runs" if
+            self._data_manager.root_data_path is not None else Path(".")
+        )
+
         # Ask the user to pick a model file
         model_file = QFileDialog.getOpenFileName(
-            None,
+            self,
             "Pick a *.pth model file",
+            default_folder,
             filter="*.pth"
         )
 
@@ -420,16 +433,23 @@ class QuMainWidget(QWidget):
         model_path = self._data_manager.model_path
 
         # Update the button
-        self.pbSelectPredictionModelFile.setText(str(model_path))
+        self.pbSelectPredictionModelFile.setText(str(model_path.name))
 
     @pyqtSlot(name='_on_select_target_for_prediction')
     def _on_select_target_for_prediction(self):
         """Select target folder for prediction."""
 
+        default_folder = str(
+            self._data_manager.root_data_path if
+            self._data_manager.root_data_path is not None else Path(".")
+        )
+
         # Ask the user to pick a folder
         target_dir = QFileDialog.getExistingDirectory(
-            None,
-            "Select Prediction Target Directory..."
+            self,
+            "Select Prediction Target Directory...",
+            default_folder,
+            QFileDialog.ShowDirsOnly
         )
         if target_dir == '':
             # The user cancelled the selection

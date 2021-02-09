@@ -1061,7 +1061,7 @@ class DataManager:
             # We can return here
             return
 
-        # Quick scan: does the maks folder exist? Does it contain something?
+        # Quick scan: does the masks folder exist? Does it contain something?
         if Path(self._rel_masks_path).is_dir():
             if len(glob(str(Path(self._rel_masks_path) / "*.*"))) > 0:
 

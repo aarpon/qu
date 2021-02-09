@@ -10,32 +10,34 @@
 #   *******************************************************************************/
 #
 
+import os
 import sys
 from datetime import datetime
 from glob import glob
 from io import TextIOWrapper
-
-import numpy as np
 from pathlib import Path
 from typing import Tuple, Union
-import os
 
+import numpy as np
 import torch
-from monai.data import ArrayDataset, DataLoader, Dataset
+from monai.data import DataLoader, CacheDataset, Dataset
 from monai.inferers import sliding_window_inference
-from monai.networks.nets import UNet
+from monai.transforms import (
+    AddChanneld, Compose, Identityd, LoadImaged, RandCropByPosNegLabeld,
+    RandSpatialCropd, ScaleIntensityRanged, ToTensord, ToNumpy, ScaleIntensity, LoadImage, ScaleIntensityRange,
+    AddChannel, ToTensor
+)
 from monai.utils import set_determinism
-from monai.transforms import AddChannel, Compose, LoadImage, \
-    RandRotate90, RandSpatialCrop, ToTensor, ScaleIntensityRange, ScaleIntensity, ToNumpy
 from natsort import natsorted
 from tifffile import TiffWriter
+from torch.nn import L1Loss
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
-from torch.nn import L1Loss
 
-from qu.transform.extern.monai import Identity
 from qu.models.abstract_base_learner import AbstractBaseLearner
+from qu.models.basic import ClassicUNet2D
 from qu.transform import one_hot_stack_to_label_image
+from qu.transform.extern.monai import DebugInformer, Identity
 
 
 class UNet2DRestorer(AbstractBaseLearner):
@@ -139,14 +141,19 @@ class UNet2DRestorer(AbstractBaseLearner):
         self._test_image_names: list = []
         self._test_target_names: list = []
 
+        # Data dictionary
+        self._train_data_dictionary = None
+        self._validation_data_dictionary = None
+        self._test_data_dictionary = None
+        self._prediction_data_dictionary = None
+
         # Transforms
-        self._train_image_transforms = None
-        self._train_target_transforms = None
-        self._validation_image_transforms = None
-        self._validation_target_transforms = None
-        self._test_image_transforms = None
-        self._test_target_transforms = None
+        self._train_transforms = None
+        self._validation_transforms = None
+        self._test_transforms = None
+
         self._prediction_image_transforms = None
+
         self._validation_post_transforms = None
         self._test_post_transforms = None
         self._prediction_post_transforms = None
@@ -179,6 +186,20 @@ class UNet2DRestorer(AbstractBaseLearner):
         # Keep track of last error message
         self._message = ""
 
+    def _dump_network(self, output_file_name: Union[Path, str]) -> None:
+        """Dump the network structure to file."""
+
+        if self._model is None:
+            return
+
+        # Make sure the parent folder already exists
+        Path(output_file_name).parent.mkdir(parents=True, exist_ok=True)
+
+        # Write the structure
+        with open(output_file_name, 'w') as f:
+            for module in self._model.modules():
+                f.write(f"{module}")
+
     def train(self) -> bool:
         """Run training in a separate thread (added to the global application ThreadPool)."""
 
@@ -186,19 +207,9 @@ class UNet2DRestorer(AbstractBaseLearner):
         self._clear_session()
 
         # Check that the data is set properly
-        if len(self._train_image_names) == 0 or \
-                len(self._train_target_names) == 0 or \
-                len(self._validation_image_names) == 0 or \
-                len(self._validation_target_names) == 0:
+        if len(self._train_data_dictionary) == 0 or \
+                len(self._validation_data_dictionary) == 0:
             self._message = "No training/validation data found."
-            return False
-
-        if len(self._train_image_names) != len(self._train_target_names) == 0:
-            self._message = "The number of training images does not match the number of training targets."
-            return False
-
-        if len(self._validation_image_names) != len(self._validation_target_names) == 0:
-            self._message = "The number of validation images does not match the number of validation targets."
             return False
 
         # Define the transforms
@@ -221,6 +232,9 @@ class UNet2DRestorer(AbstractBaseLearner):
 
         # Keep track of the best model file name
         self._best_model = model_file_name
+
+        # Dump the network structure
+        self._dump_network(Path(experiment_name) / "UNet_architecture.txt")
 
         # Enter the main training loop
         lowest_validation_loss = np.Inf
@@ -248,7 +262,7 @@ class UNet2DRestorer(AbstractBaseLearner):
                 step += 1
 
                 # Get the next batch and move it to device
-                inputs, labels = batch_data[0].to(self._device), batch_data[1].to(self._device)
+                inputs, labels = batch_data["image"].to(self._device), batch_data["label"].to(self._device)
 
                 # Zero the gradient buffers
                 self._optimizer.zero_grad()
@@ -296,7 +310,7 @@ class UNet2DRestorer(AbstractBaseLearner):
                     for val_data in self._validation_dataloader:
 
                         # Get the next batch and move it to device
-                        val_images, val_labels = val_data[0].to(self._device), val_data[1].to(self._device)
+                        val_images, val_labels = val_data["image"].to(self._device), val_data["label"].to(self._device)
 
                         # Apply sliding inference over ROI size
                         val_outputs = sliding_window_inference(
@@ -399,14 +413,12 @@ class UNet2DRestorer(AbstractBaseLearner):
         # Switch to evaluation mode
         self._model.eval()
 
-        indx = 0
-
         # Make sure not to update the gradients
         with torch.no_grad():
-            for test_data in self._test_dataloader:
+            for indx, test_data in enumerate(self._test_dataloader):
 
                 # Get the next batch and move it to device
-                test_images, test_masks = test_data[0].to(self._device), test_data[1].to(self._device)
+                test_images, test_masks = test_data["image"].to(self._device), test_data["label"].to(self._device)
 
                 # Apply sliding inference over ROI size
                 test_outputs = sliding_window_inference(
@@ -434,9 +446,6 @@ class UNet2DRestorer(AbstractBaseLearner):
 
                 # Inform
                 print(f"Saved {str(target_folder)}/{basename}.tif", file=self._stdout)
-
-                # Update the index
-                indx += 1
 
         # Inform
         print(f"Test prediction completed.", file=self._stdout)
@@ -596,6 +605,22 @@ class UNet2DRestorer(AbstractBaseLearner):
         self._test_image_names = test_image_names
         self._test_target_names = test_mask_names
 
+        # Training data
+        self._train_data_dictionary = [
+            {"image": image_name, "label": label_name}
+            for image_name, label_name in zip(train_image_names, train_mask_names)
+        ]
+
+        self._validation_data_dictionary = [
+            {"image": image_name, "label": label_name}
+            for image_name, label_name in zip(val_image_names, val_mask_names)
+        ]
+
+        self._test_data_dictionary  = [
+            {"image": image_name, "label": label_name}
+            for image_name, label_name in zip(test_image_names, test_mask_names)
+        ]
+
     @staticmethod
     def _prediction_to_label_tiff_image(prediction):
         """Save the prediction to a label image (TIFF)"""
@@ -627,60 +652,170 @@ class UNet2DRestorer(AbstractBaseLearner):
         @return True if data transforms could be instantiated, False otherwise.
         """
         # Define transforms for training
-        self._train_image_transforms = Compose(
+        self._train_transforms = Compose(
             [
-                LoadImage(image_only=True),
-                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
-                AddChannel(),
-                RandSpatialCrop(self._roi_size, random_size=False),
-                RandRotate90(prob=0.5, spatial_axes=(0, 1)),
-                ToTensor()
-            ]
-        )
-        self._train_target_transforms = Compose(
-            [
-                LoadImage(image_only=True),
-                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
-                AddChannel(),
-                RandSpatialCrop(self._roi_size, random_size=False),
-                RandRotate90(prob=0.5, spatial_axes=(0, 1)),
-                ToTensor()
+                LoadImaged(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                ),
+                AddChanneld(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                ),
+                ScaleIntensityRanged(
+                    keys=[
+                        "image",
+                        "label"
+                    ],
+                    a_min=0,
+                    a_max=65535,
+                    b_min=0.0,
+                    b_max=1.0,
+                    clip=False
+                ),
+                RandCropByPosNegLabeld(
+                    keys=[
+                        "image",
+                        "label"
+                    ],
+                    label_key="label",
+                    spatial_size=self._roi_size,
+                    pos=1,
+                    neg=8,
+                    num_samples=4,
+                    image_key="image",
+                    image_threshold=0.001
+                ),
+                #         RandSpatialCropd(
+                #             keys=[
+                #                 "image",
+                #                 "label"
+                #             ],
+                #             roi_size=self._roi_size,
+                #             random_size=False
+                #         ),
+                ToTensord(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                )
             ]
         )
 
         # Define transforms for validation
-        self._validation_image_transforms = Compose(
+        self._validation_transforms = Compose(
             [
-                LoadImage(image_only=True),
-                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
-                AddChannel(),
-                ToTensor()
-            ]
-        )
-        self._validation_target_transforms = Compose(
-            [
-                LoadImage(image_only=True),
-                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
-                AddChannel(),
-                ToTensor()
+                LoadImaged(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                ),
+                AddChanneld(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                ),
+                ScaleIntensityRanged(
+                    keys=[
+                        "image",
+                        "label"
+                    ],
+                    a_min=0,
+                    a_max=65535,
+                    b_min=0.0,
+                    b_max=1.0,
+                    clip=False
+                ),
+                #         RandCropByPosNegLabeld(
+                #             keys=[
+                #                 "image",
+                #                 "label"
+                #             ],
+                #             label_key="label",
+                #             spatial_size=self._roi_size,
+                #             pos=2,
+                #             neg=1,
+                #             num_samples=4,
+                #             image_key="image",
+                #             image_threshold=0.001
+                #         ),
+                #         RandSpatialCropd(
+                #             keys=[
+                #                 "image",
+                #                 "label"
+                #             ],
+                #             roi_size=self._roi_size,
+                #             random_size=False
+                #         ),
+                ToTensord(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                )
             ]
         )
 
         # Define transforms for testing
-        self._test_image_transforms = Compose(
+        self._test_transforms = Compose(
             [
-                LoadImage(image_only=True),
-                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
-                AddChannel(),
-                ToTensor()
-            ]
-        )
-        self._test_target_transforms = Compose(
-            [
-                LoadImage(image_only=True),
-                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
-                AddChannel(),
-                ToTensor()
+                LoadImaged(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                ),
+                AddChanneld(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                ),
+                ScaleIntensityRanged(
+                    keys=[
+                        "image",
+                        "label"
+                    ],
+                    a_min=0,
+                    a_max=65535,
+                    b_min=0.0,
+                    b_max=1.0,
+                    clip=False
+                ),
+                #         RandCropByPosNegLabeld(
+                #             keys=[
+                #                 "image",
+                #                 "label"
+                #             ],
+                #             label_key="label",
+                #             spatial_size=self._roi_size,
+                #             pos=2,
+                #             neg=1,
+                #             num_samples=4,
+                #             image_key="image",
+                #             image_threshold=0.001
+                #         ),
+                #         RandSpatialCropd(
+                #             keys=[
+                #                 "image",
+                #                 "label"
+                #             ],
+                #             roi_size=self._roi_size,
+                #             random_size=False
+                #         ),
+                ToTensord(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                )
             ]
         )
 
@@ -694,7 +829,7 @@ class UNet2DRestorer(AbstractBaseLearner):
         self._test_post_transforms = Compose(
             [
                 ToNumpy(),
-                ScaleIntensity(0, 65535)
+                ScaleIntensity(0, 65535),
             ]
         )
 
@@ -714,12 +849,9 @@ class UNet2DRestorer(AbstractBaseLearner):
             persistent_workers = False
             pin_memory = torch.cuda.is_available()
 
-        if len(self._train_image_names) == 0 or \
-                len(self._train_target_names) == 0 or \
-                len(self._validation_image_names) == 0 or \
-                len(self._validation_target_names) == 0 or \
-                len(self._test_image_names) == 0 or \
-                len(self._test_target_names) == 0:
+        if len(self._train_data_dictionary) == 0 or \
+                len(self._validation_data_dictionary) == 0 or \
+                len(self._test_data_dictionary) == 0:
 
             self._train_dataset = None
             self._train_dataloader = None
@@ -731,11 +863,13 @@ class UNet2DRestorer(AbstractBaseLearner):
             return False
 
         # Training
-        self._train_dataset = ArrayDataset(
-            self._train_image_names,
-            self._train_image_transforms,
-            self._train_target_names,
-            self._train_target_transforms
+        # @TODO Investigate why CacheDataset fails
+        # @TODO if num_workers > 1
+        self._train_dataset = CacheDataset(
+            data=self._train_data_dictionary,
+            transform=self._train_transforms,
+            cache_rate=1.0,
+            num_workers=1
         )
         self._train_dataloader = DataLoader(
             self._train_dataset,
@@ -747,32 +881,34 @@ class UNet2DRestorer(AbstractBaseLearner):
         )
 
         # Validation
-        self._validation_dataset = ArrayDataset(
-            self._validation_image_names,
-            self._validation_image_transforms,
-            self._validation_target_names,
-            self._validation_target_transforms
+        # @TODO Investigate why CacheDataset fails
+        # @TODO if num_workers > 1
+        self._validation_dataset = CacheDataset(
+            data=self._validation_data_dictionary,
+            transform=self._validation_transforms,
+            cache_rate=1.0,
+            num_workers=1
         )
         self._validation_dataloader = DataLoader(
             self._validation_dataset,
             batch_size=self._validation_batch_size,
-            shuffle=False,
             num_workers=self._validation_num_workers,
             persistent_workers=persistent_workers,
             pin_memory=pin_memory
         )
 
         # Test
-        self._test_dataset = ArrayDataset(
-            self._test_image_names,
-            self._test_image_transforms,
-            self._test_target_names,
-            self._test_target_transforms
+        # @TODO Investigate why CacheDataset fails
+        # @TODO if num_workers > 1
+        self._test_dataset = CacheDataset(
+            data=self._test_data_dictionary,
+            transform=self._test_transforms,
+            cache_rate=1.0,
+            num_workers=1
         )
         self._test_dataloader = DataLoader(
             self._test_dataset,
             batch_size=self._test_batch_size,
-            shuffle=False,
             num_workers=self._test_num_workers,
             persistent_workers=persistent_workers,
             pin_memory=pin_memory
@@ -852,9 +988,9 @@ class UNet2DRestorer(AbstractBaseLearner):
         )
         self._prediction_dataloader = DataLoader(
             self._prediction_dataset,
-            batch_size=self._test_batch_size,
+            batch_size=self._prediction_batch_size,
             shuffle=False,
-            num_workers=self._test_num_workers,
+            num_workers=self._prediction_num_workers,
             persistent_workers=persistent_workers,
             pin_memory=pin_memory
         )
@@ -885,14 +1021,14 @@ class UNet2DRestorer(AbstractBaseLearner):
         if self._device != "cpu":
             torch.cuda.empty_cache()
 
-        # Monai's UNet
-        self._model = UNet(
-            dimensions=2,
+        # Classic U-Net from Ronneberger et al. (with slightly different parameters)
+        self._model = ClassicUNet2D(
             in_channels=self._in_channels,
-            out_channels=self._out_channels,
-            channels=(16, 32, 64, 128, 256),
-            strides=(2, 2, 2, 2),
-            num_res_units=2
+            n_classes=self._out_channels,
+            depth=5,
+            wf=4,
+            padding=True,
+            batch_norm=False
         ).to(self._device)
 
     def _define_training_loss(self) -> None:

@@ -15,7 +15,7 @@ from glob import glob
 from pathlib import Path
 from shutil import rmtree
 from zipfile import ZipFile
-
+import os
 import requests
 
 
@@ -26,7 +26,10 @@ def get_demo_segmentation_dataset():
     """
 
     # Data folder
-    data_folder = Path.home() / ".qu" / "data"
+    if "QU_DATA_FOLDER" in os.environ:
+        data_folder = Path(os.environ["QU_DATA_FOLDER"]).resolve()
+    else:
+        data_folder = Path.home() / ".qu" / "data"
 
     # Make sure the folder exists
     data_folder.mkdir(parents=True, exist_ok=True)
@@ -82,7 +85,10 @@ def get_demo_restoration_dataset():
     """
 
     # Data folder
-    data_folder = Path.home() / ".qu" / "data"
+    if "QU_DATA_FOLDER" in os.environ:
+        data_folder = Path(os.environ["QU_DATA_FOLDER"]).resolve()
+    else:
+        data_folder = Path.home() / ".qu" / "data"
 
     # Make sure the folder exists
     data_folder.mkdir(parents=True, exist_ok=True)

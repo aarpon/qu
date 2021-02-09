@@ -134,13 +134,45 @@ class DebugInformer(Transform):
         """Call the Transform."""
         prefix = f"{self.name} :: " if self.name != "" else ""
         if type(data) == torch.Tensor:
-            print(f"{prefix}Torch tensor: Size = {data.size()}, type = {data.dtype}, min = {data.min()}, max = {data.max()}")
+            print(
+                f"{prefix}"
+                f"Type = Torch Tensor: "
+                f"size = {data.size()}, "
+                f"type = {data.dtype}, "
+                f"min = {data.min()}, "
+                f"mean = {data.mean()}, "
+                f"median = {torch.median(data).item()}, "
+                f"max = {data.max()}"
+            )
         elif type(data) == np.ndarray:
-            print(f"{prefix}Numpy array: Size = {data.shape}, type = {data.dtype}, min = {data.min()}, max = {data.max()}")
+            print(
+                f"{prefix}"
+                f"Type = Numpy Array: "
+                f"size = {data.shape}, "
+                f"type = {data.dtype}, "
+                f"min = {data.min()}, "
+                f"mean = {data.mean()}, "
+                f"median = {np.median(data)}, "
+                f"max = {data.max()}"
+            )
         elif type(data) == str:
             print(f"{prefix}String: value = '{str}'")
-        elif type(data) == itk.itkPyBufferPython.NDArrayITKBase:
-            print(f"{prefix}ITK array: Size = {data.shape}, type = {data.dtype}, min = {data.min().item()}, max = {data.max().item()}")
+        elif str(type(data)).startswith("<class 'itk."):
+            # This is a bit of a hack..."
+            data_numpy = np.array(data)
+            print(
+                f"{prefix}"
+                f"Type = ITK Image: "
+                f"size = {data_numpy.shape}, "
+                f"type = {data_numpy.dtype}, "
+                f"min = {data_numpy.min()}, "
+                f"mean = {data_numpy.mean()}, "
+                f"median = {np.median(data_numpy)}, "
+                f"max = {data_numpy.max()}"
+            )
         else:
-            print(f"{prefix}{type(data)}: {str(data)}")
+            try:
+                print(f"{prefix}{type(data)}: {str(data)}")
+            except:
+                print(f"{prefix}Unknown type!")
         return data
