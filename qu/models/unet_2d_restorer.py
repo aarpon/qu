@@ -23,9 +23,8 @@ import torch
 from monai.data import DataLoader, CacheDataset, Dataset
 from monai.inferers import sliding_window_inference
 from monai.transforms import (
-    AddChanneld, Compose, Identityd, LoadImaged, RandCropByPosNegLabeld,
-    RandSpatialCropd, ScaleIntensityRanged, ToTensord, ToNumpy, ScaleIntensity, LoadImage, ScaleIntensityRange,
-    AddChannel, ToTensor
+    AddChanneld, Compose, LoadImaged, ToTensord, ToNumpy, ScaleIntensity, LoadImage, AddChannel, ToTensor,
+    ScaleIntensityd, RandSpatialCropSamplesd
 )
 from monai.utils import set_determinism
 from natsort import natsorted
@@ -37,7 +36,7 @@ from torch.utils.tensorboard import SummaryWriter
 from qu.models.abstract_base_learner import AbstractBaseLearner
 from qu.models.basic import ClassicUNet2D
 from qu.transform import one_hot_stack_to_label_image
-from qu.transform.extern.monai import DebugInformer, Identity
+from qu.transform.extern.monai import Identity
 
 
 class UNet2DRestorer(AbstractBaseLearner):
@@ -666,38 +665,33 @@ class UNet2DRestorer(AbstractBaseLearner):
                         "label"
                     ]
                 ),
-                ScaleIntensityRanged(
+                # ScaleIntensityRanged(
+                #     keys=[
+                #         "image",
+                #         "label"
+                #     ],
+                #     a_min=0,
+                #     a_max=65535,
+                #     b_min=0.0,
+                #     b_max=1.0,
+                #     clip=False
+                # ),
+                ScaleIntensityd(
+                    keys=[
+                        "image",
+                        "label"
+                    ]
+                ),
+                RandSpatialCropSamplesd(
                     keys=[
                         "image",
                         "label"
                     ],
-                    a_min=0,
-                    a_max=65535,
-                    b_min=0.0,
-                    b_max=1.0,
-                    clip=False
+                    roi_size=self._roi_size,
+                    num_samples=16,
+                    random_center=True,
+                    random_size=False
                 ),
-                RandCropByPosNegLabeld(
-                    keys=[
-                        "image",
-                        "label"
-                    ],
-                    label_key="label",
-                    spatial_size=self._roi_size,
-                    pos=1,
-                    neg=8,
-                    num_samples=4,
-                    image_key="image",
-                    image_threshold=0.001
-                ),
-                #         RandSpatialCropd(
-                #             keys=[
-                #                 "image",
-                #                 "label"
-                #             ],
-                #             roi_size=self._roi_size,
-                #             random_size=False
-                #         ),
                 ToTensord(
                     keys=[
                         "image",
@@ -722,38 +716,23 @@ class UNet2DRestorer(AbstractBaseLearner):
                         "label"
                     ]
                 ),
-                ScaleIntensityRanged(
+                # ScaleIntensityRanged(
+                #     keys=[
+                #         "image",
+                #         "label"
+                #     ],
+                #     a_min=0,
+                #     a_max=65535,
+                #     b_min=0.0,
+                #     b_max=1.0,
+                #     clip=False
+                # ),
+                ScaleIntensityd(
                     keys=[
                         "image",
                         "label"
-                    ],
-                    a_min=0,
-                    a_max=65535,
-                    b_min=0.0,
-                    b_max=1.0,
-                    clip=False
+                    ]
                 ),
-                #         RandCropByPosNegLabeld(
-                #             keys=[
-                #                 "image",
-                #                 "label"
-                #             ],
-                #             label_key="label",
-                #             spatial_size=self._roi_size,
-                #             pos=2,
-                #             neg=1,
-                #             num_samples=4,
-                #             image_key="image",
-                #             image_threshold=0.001
-                #         ),
-                #         RandSpatialCropd(
-                #             keys=[
-                #                 "image",
-                #                 "label"
-                #             ],
-                #             roi_size=self._roi_size,
-                #             random_size=False
-                #         ),
                 ToTensord(
                     keys=[
                         "image",
@@ -778,38 +757,23 @@ class UNet2DRestorer(AbstractBaseLearner):
                         "label"
                     ]
                 ),
-                ScaleIntensityRanged(
+                # ScaleIntensityRanged(
+                #     keys=[
+                #         "image",
+                #         "label"
+                #     ],
+                #     a_min=0,
+                #     a_max=65535,
+                #     b_min=0.0,
+                #     b_max=1.0,
+                #     clip=False
+                # ),
+                ScaleIntensityd(
                     keys=[
                         "image",
                         "label"
-                    ],
-                    a_min=0,
-                    a_max=65535,
-                    b_min=0.0,
-                    b_max=1.0,
-                    clip=False
+                    ]
                 ),
-                #         RandCropByPosNegLabeld(
-                #             keys=[
-                #                 "image",
-                #                 "label"
-                #             ],
-                #             label_key="label",
-                #             spatial_size=self._roi_size,
-                #             pos=2,
-                #             neg=1,
-                #             num_samples=4,
-                #             image_key="image",
-                #             image_threshold=0.001
-                #         ),
-                #         RandSpatialCropd(
-                #             keys=[
-                #                 "image",
-                #                 "label"
-                #             ],
-                #             roi_size=self._roi_size,
-                #             random_size=False
-                #         ),
                 ToTensord(
                     keys=[
                         "image",
@@ -929,7 +893,8 @@ class UNet2DRestorer(AbstractBaseLearner):
         self._prediction_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
-                ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
+                # ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
+                ScaleIntensity(),
                 AddChannel(),
                 ToTensor()
             ]
