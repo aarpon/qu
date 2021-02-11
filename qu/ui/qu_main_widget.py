@@ -33,6 +33,7 @@ from qu.ui.qu_logger_widget import QuLoggerWidget
 from qu.ui.dialogs.qu_unet_segmenter_settings_dialog import QuUNetSegmenterSettingsDialog
 from qu.ui.threads import LearnerManager, PredictorManager
 
+from qu.processing import SegmentationDiagnostic
 
 class QuMainWidget(QWidget):
 
@@ -119,6 +120,11 @@ class QuMainWidget(QWidget):
 
         # Add processing submenu
         processing_menu = qu_menu.addMenu("Processing")
+
+        # Add segmentation diagnostic
+        seg_diagnostic = QAction("Segmentation Diagnostic", self)
+        seg_diagnostic.triggered.connect(self._on_qu_segmentation_diagnostic)
+        processing_menu.addAction(seg_diagnostic)
 
         # Add placeholder for now
         will_follow_action = QAction("Will follow", self)
@@ -652,6 +658,37 @@ class QuMainWidget(QWidget):
         print(f"Qu version {__version__}", file=self._out_stream)
         print(f"pytorch version {__torch_version__}", file=self._out_stream)
         print(f"monai version {__monai_version__}", file=self._out_stream)
+
+    @pyqtSlot(name="_on_qu_segmentation_diagnostic")
+    def _on_qu_segmentation_diagnostic(self):
+        """Qu call segmentation diagnostic"""
+        # Ask the user to pick the ground truth folder
+        gt_dir = QFileDialog.getExistingDirectory(
+            None,
+            "Select GROUND TRUTH Directory..."
+        )
+        if gt_dir == '':
+            # The user cancelled the selection
+            return
+
+
+        # Ask the user to pick the segmentation folder
+        segm_dir = QFileDialog.getExistingDirectory(
+            None,
+            "Select Prediction Directory..."
+        )
+        if segm_dir == '':
+            # The user cancelled the selection
+            return
+
+        print("starting segmentation diagnostic")
+        dig = SegmentationDiagnostic(gt_dir, segm_dir)
+        output_plots = dig.evaluate_segmentation()
+        print("segmentation diagnostic ended")
+        # TODO: missing open png image
+        # TODO: add process to thread to avoid blocking UI
+        print(f"output saved as {output_plots}")
+        pass
 
     @pyqtSlot(name="_on_qu_save_mask_action")
     def _on_qu_save_mask_action(self):
