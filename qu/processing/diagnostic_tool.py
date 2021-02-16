@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 import time
-
+from scipy.stats import kstest
 
 # batch assessment
 
@@ -88,7 +88,7 @@ class SegmentationDiagnostic():
             # calc image metrics
 
             # ----------------- Load images
-            # check that gt files and pred files are the same if not filter gt files
+            # check that gt files and pred files are the same if not filter pred files
             clean_gt_names = sorted([f_name.split("_")[-1] for f_name in self.gt['infos']["file_names"]])
             clean_pred_names = sorted([f_name.split("_")[-1] for f_name in self.pred_infos[pred_num]["file_names"]])
 
@@ -106,10 +106,12 @@ class SegmentationDiagnostic():
             gt_img_list = []
             pred_img_list = []
             for n, (gt_file, pred_file) in enumerate(zip(selected_gt_files, selected_pred_files)):
+
                 # load gt image
                 gt_img_path = os.path.join(self.gt['infos']['path'], gt_file)
                 gt_img_list.insert(n, np.array(Image.open(gt_img_path)))
-                # load pred image
+
+                # load predictions
                 pred_img_path = os.path.join(self.pred_infos[pred_num]['path'], pred_file)
                 pred_img_list.insert(n, np.array(Image.open(pred_img_path)))
 
@@ -117,15 +119,16 @@ class SegmentationDiagnostic():
             self.gt['img'] = gt_img_list
             self.pred_img.insert(pred_num, pred_img_list)
 
+            # calc basic and advanced image metrics
+                # ground truth
             if not self.gt['metrics']:
                 self.gt["metrics"] = self.calc_image_metrics(-1)
+                # prediction
             self.pred_metrics.insert(pred_num, self.calc_image_metrics(pred_num))
-            ious, conf_m = self.calc_advanced_image_metrics(pred_num)
-
-            # import images
-
+                # advanced
+            ious, img_f1 = self.calc_advanced_image_metrics(pred_num)
             self.pred_metrics[pred_num]['ious'] = ious
-            self.pred_metrics[pred_num]['conf_matrix'] = conf_m
+            self.pred_metrics[pred_num]['image_f1'] = img_f1
 
             self.calc_advanced_image_metrics(pred_num)
 
@@ -218,47 +221,48 @@ class SegmentationDiagnostic():
 
         # Scan through ech image
         ious = []
-        conf_matrix = []
+        image_f1 = []
         for n, (gt_img, pred_img) in enumerate(zip(gt_img_list, pred_img_list)):
             # calc_int_over_union
             ious.insert(n, self._int_over_union(gt_img, pred_img))
-            # get confusion matrix
+            # calc f1 score per image
             single_conf = confusion_matrix(gt_img.flatten(), pred_img.flatten())
-            conf_matrix.insert(n, single_conf)
-        return ious, conf_matrix
+            image_f1.insert(n, self._calc_f1_score(single_conf))
+        return ious, image_f1
 
     def calc_batch_metrics(self, pred_num=0):
         """batch level metrics comparing ground truth and prediction"""
 
-        batch_metrics = {"cell_count_p": [],
-                         "permutation_score": [],
-                         "iou_mean": [],
+        batch_metrics = {"cell_count_RMSE": [],
+                         "ks_p": [],
+                         "cell_size_p": [],
                          "f1_score": []}
 
         gt_metrics = self.gt["metrics"]
         pred_metrics = self.pred_metrics[pred_num]
         # prediction image level metrics
 
-        # assess difference in cell count
+        # assess difference in cell count RMSE
         gt_count = gt_metrics['cell_count']
         pr_count = pred_metrics["cell_count"]
-        batch_metrics["cell_count_p"] = self._run_permutation_test(gt_count, pr_count)
+        batch_metrics["cell_count_RMSE"] = round(np.sqrt(((np.array(gt_count) - np.array(pr_count))**2).mean()),3)
 
         # assess difference in cell sizes
         gt_sizes = gt_metrics['cell_sizes']
         pr_sizes = pred_metrics['cell_sizes']
-        batch_metrics["cell_size_p"] = self._run_permutation_test(gt_sizes, pr_sizes)
+        p_score = kstest(gt_sizes, pr_sizes )[1]
+        batch_metrics["ks_p"] = round(p_score,3)
 
         # calc average iou
-        batch_metrics["iou_mean"] = mean(pred_metrics['ious'])
+        batch_metrics["iou_mean"] = round(mean(pred_metrics['ious']),3)
 
         # calc f value
-        conf_matrix = pred_metrics['conf_matrix']
-        if not isinstance(conf_matrix, list):
-            conf_matrix = [conf_matrix]
-        f1_score_list = [self._calc_f1_score(cf) for cf in conf_matrix]
+        image_f1 = pred_metrics['image_f1']
+        if not isinstance(image_f1, list):
+            image_f1 = [image_f1]
+        f1_score_mean = mean(image_f1)
 
-        batch_metrics["f1_score"] = f1_score_list
+        batch_metrics["f1_score"] = round(f1_score_mean, 3)
 
         # store dictionary as attribute
         return batch_metrics
@@ -283,10 +287,10 @@ class SegmentationDiagnostic():
         pred_cell_count = pred_metrics['cell_count']
         max_ax_range = np.quantile(np.array(pred_cell_count).flatten(), 0.95)
         # create plot
-        axs[0, 0].scatter(np.array(gt_cell_count), np.array(pred_cell_count))
+        axs[0, 0].scatter(np.array(gt_cell_count), np.array(pred_cell_count) )
         axs[0, 0].set_xlim([0, max_ax_range])
         axs[0, 0].set_ylim([0, max_ax_range])
-        axs[0, 0].set_title("number of cells per image")
+        axs[0, 0].set_title(f"number of cells per image - RMSE: {pred_batch_metrics['cell_count_RMSE']}")
         axs[0, 0].set_xlabel("ground truth")
         axs[0, 0].set_ylabel("prediction")
 
@@ -296,23 +300,28 @@ class SegmentationDiagnostic():
         pred_sizes = pred_metrics["cell_sizes"]
         # plot
         axs[0, 1].violinplot([gt_sizes, pred_sizes])
-        axs[0, 1].set_title("Size of cells")
+        axs[0, 1].set_title(f"Size of cells - ks p score: {pred_batch_metrics['ks_p']}")
         axs[0, 1].set_xticks([1, 2])
         axs[0, 1].set_xticklabels(["ground truth", "prediction"])
+        axs[0, 1].set_ylim([0, 40])
 
         # plt 3 intersection over union
         # get data
         ious = pred_metrics['ious']
         # plot
         axs[1, 0].boxplot(ious)
-        axs[1, 0].set_title("Position of cells (intersection over union)")
+        axs[1, 0].set_title(f"Position of cells - Jaccard index: {pred_batch_metrics['iou_mean']}")
+        axs[1, 0].set_ylim([.50,1])
 
-        # plt 4 confusion matrix
+        # plt 4 f_score
         # get data
-        f1_scores = pred_batch_metrics['f1_score']
+        f1_scores = pred_metrics['image_f1']
         # plot
         axs[1, 1].hist(f1_scores)
-        axs[1, 1].set_title("classification accuracy - f1 score per image")
+        axs[1, 1].set_title(f"classification accuracy - f1 score: {pred_batch_metrics['f1_score']}")
+        axs[1, 1].set_xlim([0.5, 1])
+
+        fig.suptitle(f"{pred_infos['exp_name']} diagnostic")
         return fig
 
     def _get_contours(self, img) -> object:
@@ -405,4 +414,8 @@ class SegmentationDiagnostic():
 
 
 if __name__ == "__main__":
-    pass
+    gt_path = "/home/matt/.qu/data/demo_segmentation/masks"
+    pred_path = "/home/matt/.qu/data/demo_segmentation/UNET_preds"
+    from qu.processing import SegmentationDiagnostic
+    dig = SegmentationDiagnostic(gt_path, pred_path)
+    dig.evaluate_segmentation()
