@@ -9,7 +9,6 @@
 #   *     Aaron Ponti - initial API and implementation
 #   *******************************************************************************/
 #
-from os.path import basename
 from pathlib import Path
 from typing import Union, Tuple
 from tifffile import imread, imsave
@@ -280,3 +279,7 @@ if __name__ == "__main__":
 
     print(create_patches("/media/aaron/SAMSUNG_SSD/Projects/2021/2/P2021_003/data/Aaron/source/spim_TL2_Channel1_Tile1.tif"))
     print(merge_patches("/media/aaron/SAMSUNG_SSD/Projects/2021/2/P2021_003/data/Aaron/source/", "spim_TL2_Channel1_Tile1"))
+
+    print(create_patches("/media/aaron/SAMSUNG_SSD/Projects/2021/2/P2021_003/data/Aaron_reshaped/source/spim_TL2_Channel1_Tile1.tif"))
+    print(merge_patches("/media/aaron/SAMSUNG_SSD/Projects/2021/2/P2021_003/data/Aaron_reshaped/source/", "spim_TL2_Channel1_Tile1"))
+ 
