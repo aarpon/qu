@@ -17,11 +17,11 @@ from natsort import natsorted
 import numpy as np
 
 
-def create_patches(
-    input_tiff_file: Union[Path, str], 
-    output_dir: Union[None, Path, str] = None,
-    block_size: Tuple[int, int] = (512, 512), 
-    verbose: bool = False) -> bool:
+def create_blocks(
+        input_tiff_file: Union[Path, str],
+        output_dir: Union[None, Path, str] = None,
+        block_size: Tuple[int, int] = (512, 512),
+        verbose: bool = False) -> bool:
     """Breaks a 2D or 3D data set into blocks of size (height, widht) and full depth.
     
     @param input_tiff_file: Path or str
@@ -77,7 +77,7 @@ def create_patches(
                 print(f"Extract region y = {center_y - step_y}:{center_y + step_y}, x = {center_x - step_x}:{center_x + step_x}")
 
             # Extract current block
-            block = img[..., (center_y - step_y) : (center_y + step_y), (center_x - step_x) : (center_x + step_x)]
+            block = img[..., (center_y - step_y): (center_y + step_y), (center_x - step_x): (center_x + step_x)]
 
             # Build file name
             out_file_name = work_dir / f"{basename}_c{c:04d}_r{r:04d}.tif"
@@ -86,18 +86,18 @@ def create_patches(
             imsave(str(out_file_name), block)
 
             # Inform
-            print(f"Saved file {out_file_name.stem}")            
+            print(f"Saved file {out_file_name.stem}")
 
     return True
 
 
-def merge_patches(
-    input_dir: Union[Path, str],
-    basename: str,
-    output_dir: Union[None, Path, str] = None,
-    verbose: bool = False
-    ) -> bool:
-    """Merge 2D or 3D patches into a full image.
+def merge_blocks(
+        input_dir: Union[Path, str],
+        basename: str,
+        output_dir: Union[None, Path, str] = None,
+        verbose: bool = False
+) -> bool:
+    """Merge 2D or 3D blocks into a full image.
     
     @param input_dir: Path or str
         Full path of the folder where the files to be merged are contained.
@@ -105,7 +105,7 @@ def merge_patches(
     @param basename: str
         Common base name of all block files (see below).
     
-    @param outdir: None, Path or str, default = None
+    @param output_dir: None, Path or str, default = None
         Full path to the target directory. Set to None (or omit), to save in the folder of the source TIFF file.
     
     @param verbose: Bool
@@ -131,10 +131,10 @@ def merge_patches(
 
     # Full path of the first image
     first_block_file_name = Path(input_dir) / f"{basename}_c0000_r0000.tif"
-    
+
     # Inform
     print(f"Load and process block image {first_block_file_name}")
-    
+
     # Read the first image to get the size of the individual block
     block = imread(first_block_file_name)
 
@@ -147,25 +147,25 @@ def merge_patches(
     step_x = block_width // 2
 
     # Get the numbers of blocks per row and column by scanning the file names
-    n_rows = -1
-    n_cols = -1
+    last_row = -1
+    last_col = -1
     for file_name in file_list:
         c = int(file_name[-14:-10])
-        if c > n_rows:
-            n_rows = c
+        if c > last_col:
+            last_col = c
         r = int(file_name[-8:-4])
-        if r > n_cols:
-            n_cols = r
+        if r > last_row:
+            last_row = r
 
     # Calculate the final image size
-    image_height = block_height * (n_cols - 2)
-    image_width = block_width * (n_rows - 2)
+    image_height = step_y * (last_col + 2)
+    image_width = step_x * (last_row + 2)
 
     # Inform
     if verbose:
         print(f"Block size = ({block_height}, {block_width}); "
-            f"grid size (with overlap) = ({n_rows}, {n_cols}), "
-            f"final image size = ({image_height}, {image_width})")
+              f"grid size (with overlap) = ({last_row}, {last_col}), "
+              f"final image size = ({image_height}, {image_width})")
 
     # Allocate memory for the final image
     image_size = list(block.shape)
@@ -188,7 +188,7 @@ def merge_patches(
                 # Inform
                 if verbose:
                     print(f"First block already loaded")
-            
+
             else:
 
                 # Build the expected block file name
@@ -203,14 +203,14 @@ def merge_patches(
             # Inform
             if verbose:
                 print(f"Insert block into region y = "
-                    f"{center_y - step_y}:{center_y + step_y}, "
-                    f"x = {center_x - step_x}:{center_x + step_x}"
-                )
+                      f"{center_y - step_y}:{center_y + step_y}, "
+                      f"x = {center_x - step_x}:{center_x + step_x}"
+                      )
 
             # Insert current block; averaging the overlapping areas where needed
             if c == 0 and r == 0:
                 image[..., (center_y - step_y): (center_y + step_y), (center_x - step_x): (center_x + step_x)] = block
-            
+
             elif c == 0 and r > 0:
                 # Only average on the left
 
@@ -239,10 +239,10 @@ def merge_patches(
                 working_block = block.astype(np.float32)
                 working_block[..., 0:step_y, 0: block_width] = (0.5 * (working_block[..., 0:step_y, 0: block_width] + overlap_image)).astype(image_dtype)
                 image[..., (center_y - step_y): (center_y + step_y), (center_x - step_x): (center_x + step_x)] = working_block
-        
+
             else:
                 # Average both left and up (three segments)
-                
+
                 if verbose:
                     print(f"Reading area 1 [{center_y - step_y}:{center_y}, {center_x - step_x}:{center_x}] from image.")
                     print(f"Reading area 2 [{center_y - step_y}:{center_y}, {center_x}:{center_x + step_x}] from image.")
@@ -274,12 +274,3 @@ def merge_patches(
 
     # Return success
     return True
-
-if __name__ == "__main__":
-
-    print(create_patches("/media/aaron/SAMSUNG_SSD/Projects/2021/2/P2021_003/data/Aaron/source/spim_TL2_Channel1_Tile1.tif"))
-    print(merge_patches("/media/aaron/SAMSUNG_SSD/Projects/2021/2/P2021_003/data/Aaron/source/", "spim_TL2_Channel1_Tile1"))
-
-    print(create_patches("/media/aaron/SAMSUNG_SSD/Projects/2021/2/P2021_003/data/Aaron_reshaped/source/spim_TL2_Channel1_Tile1.tif"))
-    print(merge_patches("/media/aaron/SAMSUNG_SSD/Projects/2021/2/P2021_003/data/Aaron_reshaped/source/", "spim_TL2_Channel1_Tile1"))
- 
