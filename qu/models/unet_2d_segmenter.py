@@ -1054,9 +1054,9 @@ class UNet2DSegmenter(AbstractBaseLearner):
         date_time = now.strftime("%Y%m%d_%H%M%S")
 
         # Experiment name
-        experiment_name = f"{self._raw_experiment_name}_{date_time}" \
+        experiment_name = f"{self._raw_experiment_name}_{str(self._architecture)}_{date_time}" \
             if self._raw_experiment_name != "" \
-            else f"{date_time}"
+            else f"{str(self._architecture)}_{date_time}"
         experiment_name = runs_dir / experiment_name
 
         # Best model file name
