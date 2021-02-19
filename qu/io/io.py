@@ -23,19 +23,19 @@ def create_blocks(
         block_size: Tuple[int, int] = (512, 512),
         verbose: bool = False) -> bool:
     """Breaks a 2D or 3D data set into blocks of size (height, widht) and full depth.
-    
+
     @param input_tiff_file: Path or str
         Full path of the TIFF file to read.
-    
+
     @param output_dir: None, Path or str, default = None
         Full path to the target directory. Set to None (or omit), to save in the folder of the source TIFF file.
-    
+
     @param block_size: Tuple(height, width), default = (512, 512)
         Size of the block (height, width); all other dimensions are preserved completely.
-    
+
     @param verbose: Bool
         If True, print a lot of information.
-    
+
     Blocks are saved with filenames following this pattern: {work_dir} / {basename}_c####_r####.tif
 
     @return True if the process was successful, false otherwise.
@@ -95,22 +95,26 @@ def merge_blocks(
         input_dir: Union[Path, str],
         basename: str,
         output_dir: Union[None, Path, str] = None,
+        squeeze: bool = False,
         verbose: bool = False
 ) -> bool:
     """Merge 2D or 3D blocks into a full image.
-    
+
     @param input_dir: Path or str
         Full path of the folder where the files to be merged are contained.
-    
+
     @param basename: str
         Common base name of all block files (see below).
-    
+
     @param output_dir: None, Path or str, default = None
         Full path to the target directory. Set to None (or omit), to save in the folder of the source TIFF file.
-    
+
+    @param squeeze: Bool
+        If True, squeeze any singleton dimension.
+
     @param verbose: Bool
         If True, print a lot of information.
-    
+
     Files (blocks) are expected to have filenames following this pattern: {input_dir} / {basename}_c####_r####.tif
 
     @return True if the process was successful, false otherwise.    
@@ -268,9 +272,14 @@ def merge_blocks(
 
                 image[..., (center_y - step_y): (center_y + step_y), (center_x - step_x): (center_x + step_x)] = working_block
 
+    # If squeeze is True, remove any singleton dimension
+    if squeeze:
+        image = image.squeeze()
+
     # Save the reconstructed image
     out_file_name = Path(output_dir) / f"{basename}.tif"
     imsave(out_file_name, image)
 
     # Return success
     return True
+
