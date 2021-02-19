@@ -6,60 +6,36 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>299</width>
-    <height>252</height>
+    <width>341</width>
+    <height>342</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>U-Net 2D Segmenter</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="5" column="1">
-    <widget class="QLineEdit" name="lineEditROIWidth">
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="1">
-    <widget class="QLineEdit" name="leTrainingBatchSize">
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="0">
-    <widget class="QLabel" name="labelNumEpochs">
-     <property name="text">
-      <string>Number of epochs</string>
-     </property>
-    </widget>
-   </item>
-   <item row="9" column="0" colspan="2">
-    <widget class="QDialogButtonBox" name="buttonBox">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="1">
-    <widget class="QLineEdit" name="lineEditROIHeight">
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="0">
+   <item row="10" column="0">
     <widget class="QLabel" name="label">
      <property name="text">
       <string>Training batch size</string>
      </property>
     </widget>
    </item>
-   <item row="0" column="1">
+   <item row="12" column="1">
+    <widget class="QLineEdit" name="leNumWorkers">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="0">
+    <widget class="QLabel" name="labelROIHeight">
+     <property name="text">
+      <string>ROI height</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
     <widget class="QLineEdit" name="leNumEpochs">
      <property name="inputMethodHints">
       <set>Qt::ImhDigitsOnly|Qt::ImhPreferNumbers</set>
@@ -69,57 +45,179 @@
      </property>
     </widget>
    </item>
-   <item row="1" column="1">
-    <widget class="QLineEdit" name="leValidationStep">
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   <item row="0" column="0">
+    <widget class="QLabel" name="label_2">
+     <property name="accessibleName">
+      <string>labelArchitecture</string>
+     </property>
+     <property name="text">
+      <string>Architecture</string>
      </property>
     </widget>
    </item>
-   <item row="4" column="0">
-    <widget class="QLabel" name="labelROIHeight">
+   <item row="3" column="0">
+    <widget class="QLabel" name="labelNumFiltersFirstLayer">
      <property name="text">
-      <string>ROI height</string>
+      <string>Number of filters in first layer</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1">
+    <widget class="QComboBox" name="cbNumFiltersInFirstLayer">
+     <item>
+      <property name="text">
+       <string>2</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>4</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>8</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>16</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>32</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>64</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>128</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>256</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="labelNumEpochs">
+     <property name="text">
+      <string>Number of epochs</string>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="1">
+    <widget class="QLineEdit" name="lineEditROIWidth">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
    <item row="8" column="1">
-    <widget class="QLineEdit" name="leNumWorkers">
+    <widget class="QLineEdit" name="lineEditROIHeight">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="8" column="0">
-    <widget class="QLabel" name="labelNumWorkers">
-     <property name="text">
-      <string>Number of workers</string>
+   <item row="0" column="1">
+    <widget class="QComboBox" name="cbArchitecture">
+     <property name="accessibleName">
+      <string/>
+     </property>
+     <item>
+      <property name="text">
+       <string>Residual U-Net</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Attention U-Net</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="13" column="0" colspan="2">
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
      </property>
     </widget>
    </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="labelValidationStep">
-     <property name="text">
-      <string>Validation step</string>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="0">
-    <widget class="QLabel" name="labelROIWidth">
-     <property name="text">
-      <string>ROI width</string>
-     </property>
-    </widget>
-   </item>
-   <item row="7" column="0">
+   <item row="11" column="0">
     <widget class="QLabel" name="labelSlidingWindowBatchSize">
      <property name="text">
       <string>Sliding window batch size</string>
      </property>
     </widget>
    </item>
-   <item row="7" column="1">
+   <item row="12" column="0">
+    <widget class="QLabel" name="labelNumWorkers">
+     <property name="text">
+      <string>Number of workers</string>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="1">
     <widget class="QLineEdit" name="leSlidingWindowBatchSize">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="10" column="1">
+    <widget class="QLineEdit" name="leTrainingBatchSize">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QLabel" name="labelValidationStep">
+     <property name="text">
+      <string>Validation step</string>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="0">
+    <widget class="QLabel" name="labelROIWidth">
+     <property name="text">
+      <string>ROI width</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <widget class="QLineEdit" name="leValidationStep">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="labelNumberOfLayers">
+     <property name="text">
+      <string>Number of layers (fixed for now)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1">
+    <widget class="QLineEdit" name="leNumLayers">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>5</string>
+     </property>
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>

@@ -12,12 +12,14 @@
 #
 
 import dataclasses
+import math
 
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtGui import QIntValidator
 from PyQt5.QtWidgets import QDialog
 
+from qu.models.core import Architecture
 from qu.ui import _ui_folder_path
 
 
@@ -62,7 +64,9 @@ class QuUNetSegmenterSettingsDialog(QDialog):
 
     def _fill_ui_fields(self):
         """Fill the UI elements with the values in the settings."""
+        self.cbArchitecture.setCurrentIndex(self._settings.architecture.value)
         self.leNumEpochs.setText(str(self._settings.num_epochs))
+        self.cbNumFiltersInFirstLayer.setCurrentIndex(int(math.log2(self._settings.num_filters_in_first_layer) - 1))
         self.leValidationStep.setText(str(self._settings.validation_step))
         self.leTrainingBatchSize.setText(str(self._settings.batch_sizes[0]))
         self.lineEditROIHeight.setText(str(self._settings.roi_size[0]))
@@ -72,7 +76,9 @@ class QuUNetSegmenterSettingsDialog(QDialog):
 
     def _set_connections(self):
         """Plug signals and slots"""
+        self.cbArchitecture.currentIndexChanged.connect(self._on_architecture_value_changed)
         self.leNumEpochs.textChanged.connect(self._on_num_epochs_text_changed)
+        self.cbNumFiltersInFirstLayer.currentIndexChanged.connect(self._on_num_filters_in_first_layer_changed)
         self.leValidationStep.textChanged.connect(self._on_validation_step_text_changed)
         self.leTrainingBatchSize.textChanged.connect(self._on_training_batch_size_text_changed)
         self.lineEditROIHeight.textChanged.connect(self._on_roi_height_text_changed)
@@ -88,6 +94,16 @@ class QuUNetSegmenterSettingsDialog(QDialog):
             return dialog._settings
         return None
 
+    @pyqtSlot(int, name="_on_architecture_value_changed")
+    def _on_architecture_value_changed(self, value):
+        """Architecure."""
+        if value == 0:
+            self._settings.architecture = Architecture.ResidualUNet2D
+        elif value == 1:
+            self._settings.architecture = Architecture.AttentionUNet2D
+        else:
+            raise ValueError(f"Unexpected option {value} for architecture.")
+
     @pyqtSlot('QString', name="_on_num_epochs_text_changed")
     def _on_num_epochs_text_changed(self, str_value):
         """Number of epochs."""
@@ -99,6 +115,12 @@ class QuUNetSegmenterSettingsDialog(QDialog):
             value = 1
             self.leNumEpochs.setText(str(value))
         self._settings.num_epochs = value
+
+    @pyqtSlot(int, name="_on_num_filters_in_first_layer_changed")
+    def _on_num_filters_in_first_layer_changed(self, value):
+        """Num filters in first layer."""
+        # Change he value to the corresponding power of 2
+        self._settings.num_filters_in_first_layer = 2**(value + 1)
 
     @pyqtSlot('QString', name="_on_validation_step_text_changed")
     def _on_validation_step_text_changed(self, str_value):

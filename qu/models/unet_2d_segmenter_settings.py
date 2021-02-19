@@ -14,10 +14,15 @@ import os
 from dataclasses import dataclass
 from typing import Tuple
 
+from qu.models.core import Architecture
+
 
 @dataclass
 class UNet2DSegmenterSettings:
     """Settings for the UNet segmenter."""
+
+    # Architecture
+    architecture: Architecture = Architecture.ResidualUNet2D
 
     # Number of epochs
     num_epochs: int = 10
@@ -30,6 +35,9 @@ class UNet2DSegmenterSettings:
 
     # ROI size (height, width)
     roi_size: Tuple[int, int] = (384, 384)
+
+    # Number of filters in the first layers
+    num_filters_in_first_layer: int = 16
 
     # Number of workers
     num_workers: Tuple[int, int, int, int] = (
@@ -45,10 +53,12 @@ class UNet2DSegmenterSettings:
     def to_dict(self):
         """Return settings as a dictionary."""
         return {
+            "architecture": self.architecture,
             "num_epochs": self.num_epochs,
             "validation_step": self.validation_step,
             "batch_sizes": self.batch_sizes,
             "roi_size": self.roi_size,
+            "num_filters_in_first_layer": self.num_filters_in_first_layer,
             "num_workers": self.num_workers,
             "sliding_window_batch_size": self.sliding_window_batch_size
         }

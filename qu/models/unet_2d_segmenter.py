@@ -36,6 +36,7 @@ from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 
 from qu.data.manager import MaskType
+from qu.models.core import AttentionUNet2D, Architecture
 from qu.transform.extern.monai import ToOneHot
 from qu.transform.extern.monai import Identity, LoadMask
 from qu.models.abstract_base_learner import AbstractBaseLearner
@@ -47,10 +48,12 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
     def __init__(
             self,
+            architecture: Architecture = Architecture.ResidualUNet2D,
             mask_type: MaskType = MaskType.TIFF_LABELS,
             in_channels: int = 1,
             out_channels: int = 3,
             roi_size: Tuple[int, int] = (384, 384),
+            num_filters_in_first_layer: int = 16,
             num_epochs: int = 400,
             batch_sizes: Tuple[int, int, int, int] = (8, 1, 1, 1),
             num_workers: Tuple[int, int, int, int] = (4, 4, 1, 1),
@@ -72,6 +75,9 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
             @see qu.data.model.MaskType
 
+        @param architecture: Architecture
+            Core network architecture: one of (Architecture.ResidualUNet2D, Architecture.AttentionUNet2D)
+
         @param in_channels: int, optional: default = 1
             Number of channels in the input (e.g. 1 for gray-value images).
 
@@ -80,6 +86,9 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         @param roi_size: Tuple[int, int], optional: default = (384, 384)
             Crop area (and input size of the U-Net network) used for training and validation/prediction.
+
+        @param num_filters_in_first_layer: int
+            Number of filters in the first layer. Every subsequent layer doubles the number of filters.
 
         @param num_epochs: int, optional: default = 400
             Number of epochs for training.
@@ -125,6 +134,9 @@ class UNet2DSegmenter(AbstractBaseLearner):
         # Device (initialize as "cpu")
         self._device = "cpu"
 
+        # Architecture
+        self._architecture = architecture
+
         # Mask type
         self._mask_type = mask_type
 
@@ -134,6 +146,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         # Define hyper parameters
         self._roi_size = roi_size
+        self._num_filters_in_first_layer = num_filters_in_first_layer
         self._training_batch_size = batch_sizes[0]
         self._validation_batch_size = batch_sizes[1]
         self._test_batch_size = batch_sizes[2]
@@ -958,15 +971,29 @@ class UNet2DSegmenter(AbstractBaseLearner):
         if self._device != "cpu":
             torch.cuda.empty_cache()
 
-        # Monai's UNet
-        self._model = UNet(
-            dimensions=2,
-            in_channels=self._in_channels,
-            out_channels=self._out_channels,
-            channels=(16, 32, 64, 128, 256),
-            strides=(2, 2, 2, 2),
-            num_res_units=2
-        ).to(self._device)
+        # Instantiate the requested model
+        if self._architecture == Architecture.ResidualUNet2D:
+            # Monai's UNet
+            self._model = UNet(
+                dimensions=2,
+                in_channels=self._in_channels,
+                out_channels=self._out_channels,
+                channels=tuple((self._num_filters_in_first_layer * 2**i for i in range(0, 5))),
+                strides=(2, 2, 2, 2),
+                num_res_units=2
+            ).to(self._device)
+
+        elif self._architecture == Architecture.AttentionUNet2D:
+
+            # Attention U-Net
+            self._model = AttentionUNet2D(
+                img_ch=self._in_channels,
+                output_ch=self._out_channels,
+                n1=self._num_filters_in_first_layer
+            ).to(self._device)
+
+        else:
+            raise ValueError(f"Unexpected architecture {self._architecture}! Aborting.")
 
     def _define_training_loss(self) -> None:
         """Define the loss function."""

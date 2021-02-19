@@ -583,7 +583,8 @@ class QuMainWidget(QWidget):
         # Instantiate the requested learner
         if arch == 0:
             self._learner = UNet2DSegmenter(
-                self._data_manager.mask_type,
+                architecture=self._learner_settings.architecture,
+                mask_type=self._data_manager.mask_type,
                 in_channels=self._data_manager.num_input_channels,
                 out_channels=self._data_manager.num_classes,
                 roi_size=self._learner_settings.roi_size,
