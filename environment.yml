@@ -13,7 +13,7 @@ dependencies:
   - h5py=2.10
   - cudatoolkit=10.1
   - cudnn=7.6
-  - tensorflow-gpu>=2.2
+  #- tensorflow-gpu>=2.2
   - pytorch::pytorch=1.7
   - pytorch::ignite=0.4
   - pytorch::torchvision=0.8
