@@ -35,6 +35,7 @@ from qu.ui.threads import LearnerManager, PredictorManager
 
 from qu.processing import SegmentationDiagnostic
 
+
 class QuMainWidget(QWidget):
 
     def __init__(self, viewer, *args, **kwargs):
@@ -121,11 +122,6 @@ class QuMainWidget(QWidget):
         # Add processing submenu
         processing_menu = qu_menu.addMenu("Processing")
 
-        # Add segmentation diagnostic
-        seg_diagnostic = QAction("Segmentation Diagnostic", self)
-        seg_diagnostic.triggered.connect(self._on_qu_segmentation_diagnostic)
-        processing_menu.addAction(seg_diagnostic)
-
         # Add placeholder for now
         will_follow_action = QAction("Will follow", self)
         processing_menu.addAction(will_follow_action)
@@ -156,13 +152,18 @@ class QuMainWidget(QWidget):
         # Add separator
         qu_menu.addSeparator()
 
-        # Add tools submenu
-        tools_menu = qu_menu.addMenu("Tools")
+        # Add Diagnostics submenu
+        diagnostics_menu = qu_menu.addMenu("Diagnostics")
 
-        # Add placeholder for now
+        # Add Launch Tensorboard action
         launch_tensorboard_action = QAction("Launch tensorboard", self)
         launch_tensorboard_action.triggered.connect(self._on_launch_tensorboard_action)
-        tools_menu.addAction(launch_tensorboard_action)
+        diagnostics_menu.addAction(launch_tensorboard_action)
+
+        # Add segmentation diagnostics
+        seg_diagnostic = QAction("Segmentation diagnostics", self)
+        seg_diagnostic.triggered.connect(self._on_qu_segmentation_diagnostic)
+        diagnostics_menu.addAction(seg_diagnostic)
 
         # Add separator
         qu_menu.addSeparator()
@@ -573,7 +574,6 @@ class QuMainWidget(QWidget):
             new_settings_tuple = (self._all_learners_settings[arch][0], settings_copy)
             self._all_learners_settings[arch] = new_settings_tuple
 
-
     @pyqtSlot(name="_on_run_training")
     def _on_run_training(self):
         """Instantiate the Learner (if needed) and run the training."""
@@ -623,8 +623,8 @@ class QuMainWidget(QWidget):
         # Get the data
         try:
             train_image_names, train_mask_names, \
-                val_image_names, val_mask_names, \
-                test_image_names, test_mask_names = self._data_manager.training_split()
+            val_image_names, val_mask_names, \
+            test_image_names, test_mask_names = self._data_manager.training_split()
         except ValueError as e:
             print(f"Error: {str(e)}. Aborting...", file=self._err_stream)
             return
@@ -670,7 +670,6 @@ class QuMainWidget(QWidget):
         if gt_dir == '':
             # The user cancelled the selection
             return
-
 
         # Ask the user to pick the segmentation folder
         segm_dir = QFileDialog.getExistingDirectory(
