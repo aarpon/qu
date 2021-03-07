@@ -11,6 +11,8 @@
 #
 
 import os
+
+from monai.data.dataset import ArrayDataset
 import sys
 from datetime import datetime
 from glob import glob
@@ -34,7 +36,7 @@ from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 
 from qu.models.abstract_base_learner import AbstractBaseLearner
-from qu.models.basic import ClassicUNet2D
+from qu.models.core import ClassicUNet2D
 from qu.transform import one_hot_stack_to_label_image
 from qu.transform.extern.monai import Identity
 
@@ -829,11 +831,9 @@ class UNet2DRestorer(AbstractBaseLearner):
         # Training
         # @TODO Investigate why CacheDataset fails
         # @TODO if num_workers > 1
-        self._train_dataset = CacheDataset(
+        self._train_dataset = Dataset(
             data=self._train_data_dictionary,
-            transform=self._train_transforms,
-            cache_rate=1.0,
-            num_workers=1
+            transform=self._train_transforms
         )
         self._train_dataloader = DataLoader(
             self._train_dataset,
@@ -847,11 +847,9 @@ class UNet2DRestorer(AbstractBaseLearner):
         # Validation
         # @TODO Investigate why CacheDataset fails
         # @TODO if num_workers > 1
-        self._validation_dataset = CacheDataset(
+        self._validation_dataset = Dataset(
             data=self._validation_data_dictionary,
-            transform=self._validation_transforms,
-            cache_rate=1.0,
-            num_workers=1
+            transform=self._validation_transforms
         )
         self._validation_dataloader = DataLoader(
             self._validation_dataset,
@@ -864,11 +862,9 @@ class UNet2DRestorer(AbstractBaseLearner):
         # Test
         # @TODO Investigate why CacheDataset fails
         # @TODO if num_workers > 1
-        self._test_dataset = CacheDataset(
+        self._test_dataset = Dataset(
             data=self._test_data_dictionary,
-            transform=self._test_transforms,
-            cache_rate=1.0,
-            num_workers=1
+            transform=self._test_transforms
         )
         self._test_dataloader = DataLoader(
             self._test_dataset,
@@ -995,6 +991,13 @@ class UNet2DRestorer(AbstractBaseLearner):
             padding=True,
             batch_norm=False
         ).to(self._device)
+
+        # # Attention U-Net
+        # self._model = AttentionUNet2D(
+        #     img_ch=self._in_channels,
+        #     output_ch=self._out_channels,
+        #     n1=64
+        # ).to(self._device)
 
     def _define_training_loss(self) -> None:
         """Define the loss function."""
