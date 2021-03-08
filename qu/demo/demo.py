@@ -19,8 +19,12 @@ import os
 import requests
 
 
-def get_demo_segmentation_dataset():
+def get_demo_segmentation_dataset(three_classes: bool = True):
     """If not yet present, download and expands segmentation demo dataset.
+
+    @param: three_classes = bool
+        If True, the segmentation demo with three classes (Background, Object, Border) will be downloaded;
+        if False, the segmentation demo with two classes (Background, Object).
 
     Return path of the extracted segmentation demo dataset.
     """
@@ -34,8 +38,15 @@ def get_demo_segmentation_dataset():
     # Make sure the folder exists
     data_folder.mkdir(parents=True, exist_ok=True)
 
+    if three_classes:
+        dataset_name = "demo_segmentation_3_classes"
+        archive_file_size = 69796394
+    else:
+        dataset_name = "demo_segmentation_2_classes"
+        archive_file_size = 69416154
+
     # Check if the demo data folder already exists
-    demo_folder = data_folder / "demo_segmentation"
+    demo_folder = data_folder / dataset_name
     images_folder = demo_folder / "images"
     masks_folder = demo_folder / "masks"
 
@@ -49,34 +60,36 @@ def get_demo_segmentation_dataset():
 
     # Is the zip archive already present?
     archive_found = False
-    if (data_folder / "demo_segmentation.zip").is_file():
-        if (data_folder / "demo_segmentation.zip").stat().st_size == 69792734:
+    if (data_folder / f"{dataset_name}.zip").is_file():
+        if (data_folder / f"{dataset_name}.zip").stat().st_size == archive_file_size:
             archive_found = True
         else:
-            (data_folder / "demo_segmentation.zip").unlink()
+            (data_folder / f"{dataset_name}.zip").unlink()
 
     if not archive_found:
 
         # Get binary stream
-        r = requests.get("https://obit.ethz.ch/qu/demo_segmentation.zip")
+        r = requests.get(f"https://obit.ethz.ch/qu/{dataset_name}.zip")
 
         # Target file
-        with open(data_folder / "demo_segmentation.zip", 'wb') as f:
+        with open(data_folder / f"{dataset_name}.zip", 'wb') as f:
             f.write(r.content)
 
         # Inform
-        print(f"Downloaded 'demo_segmentation.zip' ({(data_folder / 'demo_segmentation.zip').stat().st_size} bytes).")
+        num_bytes = (data_folder / f"{dataset_name}.zip").stat().st_size
+        print(f"Downloaded '{dataset_name}.zip' ({num_bytes} bytes).")
 
     # Make sure there are no remnants of previous extractions
     if demo_folder.is_dir():
         rmtree(demo_folder)
 
     # Extract zip file
-    with ZipFile(data_folder / "demo_segmentation.zip", 'r') as z:
+    with ZipFile(data_folder / f"{dataset_name}.zip", 'r') as z:
         # Extract all the contents of zip file
         z.extractall(data_folder)
 
     return demo_folder
+
 
 def get_demo_restoration_dataset():
     """If not yet present, download and expands restoration demo dataset.
