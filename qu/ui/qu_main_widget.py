@@ -164,10 +164,20 @@ class QuMainWidget(QWidget):
         # Add demos menu
         demos_menu = qu_menu.addMenu("Demos")
 
+        # Add segmentation demos menu
+        segmentation_demos_menu = demos_menu.addMenu("Segmentation dataset")
+
         # Add demos
-        demo_segmentation_action = QAction(QIcon(":/icons/download.png"), "Segmentation dataset", self)
-        demo_segmentation_action.triggered.connect(self._on_qu_demo_segmentation_action)
-        demos_menu.addAction(demo_segmentation_action)
+        demo_3_classes_segmentation_action = QAction(QIcon(":/icons/download.png"), "3 classes", self)
+        demo_3_classes_segmentation_action.triggered.connect(self._on_qu_demo_3_classes_segmentation_action)
+        segmentation_demos_menu.addAction(demo_3_classes_segmentation_action)
+
+        demo_2_classes_segmentation_action = QAction(QIcon(":/icons/download.png"), "2 classes (will follow)", self)
+        demo_2_classes_segmentation_action.triggered.connect(self._on_qu_demo_2_classes_segmentation_action)
+        demo_2_classes_segmentation_action.setEnabled(False)
+        segmentation_demos_menu.addAction(demo_2_classes_segmentation_action)
+
+        # demos_menu.addMenu(segmentation_demos_menu)
 
         demo_restoration_action = QAction(QIcon(":/icons/download.png"), "Restoration dataset", self)
         demo_restoration_action.triggered.connect(self._on_qu_demo_restoration_action)
@@ -750,9 +760,9 @@ class QuMainWidget(QWidget):
         url = QUrl("http://localhost:6006/")
         QDesktopServices.openUrl(url)
 
-    @pyqtSlot(name="_on_qu_demo_segmentation_action")
-    def _on_qu_demo_segmentation_action(self):
-        """Qu segmentation demo action."""
+    @pyqtSlot(name="_on_qu_demo_3_classes_segmentation_action")
+    def _on_qu_demo_3_classes_segmentation_action(self):
+        """Qu 3-classes segmentation demo action."""
 
         # Check whether we already have data loaded
         if self._data_manager.num_images > 0:
@@ -772,7 +782,72 @@ class QuMainWidget(QWidget):
         print("If needed, download and extract segmentation demo data.", file=self._out_stream)
 
         # Get the data
-        demo_dataset_path = get_demo_segmentation_dataset()
+        demo_dataset_path = get_demo_segmentation_dataset(three_classes=True)
+
+        # Inform
+        print("Opening segmentation demo dataset.", file=self._out_stream)
+
+        # Set the path in the DataManager
+        self._data_manager.root_data_path = demo_dataset_path
+
+        # Retrieve the (parsed) root data path
+        root_data_path = self._data_manager.root_data_path
+
+        # Update the button
+        self.pBSelectDataRootFolder.setText(str(root_data_path))
+
+        # Scan the data folder
+        try:
+            self._data_manager.scan()
+        except FileNotFoundError as fe:
+            print(f"Error: {fe}", file=self._err_stream)
+            return
+        except ValueError as ve:
+            print(f"Error: {ve}", file=self._err_stream)
+            return
+
+        # Update the data selector
+        self._update_data_selector()
+
+        # Update the training/validation/test split sliders
+        num_train, num_val, num_test = self._data_manager.preview_training_split()
+        self._update_training_ui_elements(
+            self._data_manager.training_fraction,
+            self._data_manager.validation_fraction,
+            num_train,
+            num_val,
+            num_test
+        )
+
+        # Display current data
+        self.display()
+
+        # Inform
+        print("Segmentation demo dataset opened.", file=self._out_stream)
+
+    @pyqtSlot(name="_on_qu_demo_2_classes_segmentation_action")
+    def _on_qu_demo_2_classes_segmentation_action(self):
+        """Qu 2-classes segmentation demo action."""
+
+        # Check whether we already have data loaded
+        if self._data_manager.num_images > 0:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Question)
+            msg.setText("Are you sure you want to discard current data?")
+            msg.setInformativeText("All data and changes will be lost.")
+            msg.setWindowTitle("Qu:: Question")
+            msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+            if msg.exec_() == QMessageBox.Cancel:
+                return
+
+            # Reset current model
+            self._data_manager.reset()
+
+        # Inform
+        print("If needed, download and extract segmentation demo data.", file=self._out_stream)
+
+        # Get the data
+        demo_dataset_path = get_demo_segmentation_dataset(three_classes=False)
 
         # Inform
         print("Opening segmentation demo dataset.", file=self._out_stream)
