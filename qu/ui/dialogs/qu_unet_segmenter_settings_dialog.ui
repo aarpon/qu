@@ -6,36 +6,179 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>341</width>
-    <height>342</height>
+    <width>620</width>
+    <height>678</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>U-Net 2D Segmenter</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
+   <item row="3" column="1">
+    <widget class="QLineEdit" name="leLearningRate">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="labelLearningRate">
+     <property name="text">
+      <string>Learning rate</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="labelLoss">
+     <property name="text">
+      <string>Loss fuction</string>
+     </property>
+    </widget>
+   </item>
+   <item row="14" column="1">
+    <widget class="QLineEdit" name="lineEditROIWidth">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="1">
+    <widget class="QLineEdit" name="lineEditROIHeight">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QComboBox" name="cbArchitecture">
+     <property name="accessibleName">
+      <string/>
+     </property>
+     <item>
+      <property name="text">
+       <string>Residual U-Net</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Attention U-Net</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="18" column="0" colspan="2">
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+   <item row="16" column="0">
+    <widget class="QLabel" name="labelSlidingWindowBatchSize">
+     <property name="text">
+      <string>Sliding window batch size</string>
+     </property>
+    </widget>
+   </item>
+   <item row="17" column="0">
+    <widget class="QLabel" name="labelNumWorkers">
+     <property name="text">
+      <string>Number of workers</string>
+     </property>
+    </widget>
+   </item>
+   <item row="16" column="1">
+    <widget class="QLineEdit" name="leSlidingWindowBatchSize">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="15" column="1">
+    <widget class="QLineEdit" name="leTrainingBatchSize">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
    <item row="10" column="0">
+    <widget class="QLabel" name="labelValidationStep">
+     <property name="text">
+      <string>Validation step</string>
+     </property>
+    </widget>
+   </item>
+   <item row="14" column="0">
+    <widget class="QLabel" name="labelROIWidth">
+     <property name="text">
+      <string>ROI width</string>
+     </property>
+    </widget>
+   </item>
+   <item row="10" column="1">
+    <widget class="QLineEdit" name="leValidationStep">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="0">
+    <widget class="QLabel" name="labelNumberOfLayers">
+     <property name="text">
+      <string>Number of layers (fixed for now)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="1">
+    <widget class="QLineEdit" name="leNumLayers">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>5</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QComboBox" name="cbLoss">
+     <property name="sizeAdjustPolicy">
+      <enum>QComboBox::AdjustToContents</enum>
+     </property>
+     <item>
+      <property name="text">
+       <string>Generalized Dice Loss</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="15" column="0">
     <widget class="QLabel" name="label">
      <property name="text">
       <string>Training batch size</string>
      </property>
     </widget>
    </item>
-   <item row="12" column="1">
+   <item row="17" column="1">
     <widget class="QLineEdit" name="leNumWorkers">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="8" column="0">
+   <item row="13" column="0">
     <widget class="QLabel" name="labelROIHeight">
      <property name="text">
       <string>ROI height</string>
      </property>
     </widget>
    </item>
-   <item row="1" column="1">
+   <item row="6" column="1">
     <widget class="QLineEdit" name="leNumEpochs">
      <property name="inputMethodHints">
       <set>Qt::ImhDigitsOnly|Qt::ImhPreferNumbers</set>
@@ -46,7 +189,7 @@
     </widget>
    </item>
    <item row="0" column="0">
-    <widget class="QLabel" name="label_2">
+    <widget class="QLabel" name="labelArchitecture">
      <property name="accessibleName">
       <string>labelArchitecture</string>
      </property>
@@ -55,14 +198,14 @@
      </property>
     </widget>
    </item>
-   <item row="3" column="0">
+   <item row="8" column="0">
     <widget class="QLabel" name="labelNumFiltersFirstLayer">
      <property name="text">
       <string>Number of filters in first layer</string>
      </property>
     </widget>
    </item>
-   <item row="3" column="1">
+   <item row="8" column="1">
     <widget class="QComboBox" name="cbNumFiltersInFirstLayer">
      <item>
       <property name="text">
@@ -106,118 +249,57 @@
      </item>
     </widget>
    </item>
-   <item row="1" column="0">
+   <item row="6" column="0">
     <widget class="QLabel" name="labelNumEpochs">
      <property name="text">
       <string>Number of epochs</string>
      </property>
     </widget>
    </item>
-   <item row="9" column="1">
-    <widget class="QLineEdit" name="lineEditROIWidth">
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   <item row="2" column="0">
+    <widget class="QLabel" name="labelOptimizer">
+     <property name="text">
+      <string>Optimizer</string>
      </property>
     </widget>
    </item>
-   <item row="8" column="1">
-    <widget class="QLineEdit" name="lineEditROIHeight">
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="1">
-    <widget class="QComboBox" name="cbArchitecture">
-     <property name="accessibleName">
-      <string/>
-     </property>
+   <item row="2" column="1">
+    <widget class="QComboBox" name="cbOptimizer">
      <item>
       <property name="text">
-       <string>Residual U-Net</string>
+       <string>Adam</string>
       </property>
      </item>
      <item>
       <property name="text">
-       <string>Attention U-Net</string>
+       <string>SGD</string>
       </property>
      </item>
     </widget>
    </item>
-   <item row="13" column="0" colspan="2">
-    <widget class="QDialogButtonBox" name="buttonBox">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-   <item row="11" column="0">
-    <widget class="QLabel" name="labelSlidingWindowBatchSize">
+   <item row="4" column="0">
+    <widget class="QLabel" name="labelWeightDecay">
      <property name="text">
-      <string>Sliding window batch size</string>
+      <string>Weight decay (Adam)</string>
      </property>
     </widget>
    </item>
-   <item row="12" column="0">
-    <widget class="QLabel" name="labelNumWorkers">
-     <property name="text">
-      <string>Number of workers</string>
-     </property>
-    </widget>
-   </item>
-   <item row="11" column="1">
-    <widget class="QLineEdit" name="leSlidingWindowBatchSize">
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="10" column="1">
-    <widget class="QLineEdit" name="leTrainingBatchSize">
+   <item row="4" column="1">
+    <widget class="QLineEdit" name="leWeightDecay">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
    <item row="5" column="0">
-    <widget class="QLabel" name="labelValidationStep">
+    <widget class="QLabel" name="labelMomentum">
      <property name="text">
-      <string>Validation step</string>
-     </property>
-    </widget>
-   </item>
-   <item row="9" column="0">
-    <widget class="QLabel" name="labelROIWidth">
-     <property name="text">
-      <string>ROI width</string>
+      <string>Momentum (SGD)</string>
      </property>
     </widget>
    </item>
    <item row="5" column="1">
-    <widget class="QLineEdit" name="leValidationStep">
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="labelNumberOfLayers">
-     <property name="text">
-      <string>Number of layers (fixed for now)</string>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="1">
-    <widget class="QLineEdit" name="leNumLayers">
-     <property name="enabled">
-      <bool>false</bool>
-     </property>
-     <property name="text">
-      <string>5</string>
-     </property>
+    <widget class="QLineEdit" name="leMomentum">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
@@ -226,11 +308,21 @@
   </layout>
  </widget>
  <tabstops>
+  <tabstop>cbArchitecture</tabstop>
+  <tabstop>cbLoss</tabstop>
+  <tabstop>cbOptimizer</tabstop>
+  <tabstop>leLearningRate</tabstop>
+  <tabstop>leWeightDecay</tabstop>
+  <tabstop>leMomentum</tabstop>
   <tabstop>leNumEpochs</tabstop>
+  <tabstop>leNumLayers</tabstop>
+  <tabstop>cbNumFiltersInFirstLayer</tabstop>
   <tabstop>leValidationStep</tabstop>
   <tabstop>lineEditROIHeight</tabstop>
   <tabstop>lineEditROIWidth</tabstop>
   <tabstop>leTrainingBatchSize</tabstop>
+  <tabstop>leSlidingWindowBatchSize</tabstop>
+  <tabstop>leNumWorkers</tabstop>
  </tabstops>
  <resources/>
  <connections>

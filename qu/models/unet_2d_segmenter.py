@@ -32,11 +32,11 @@ from monai.transforms import Activations, AddChannel, AsDiscrete, \
     ScaleIntensity, ToTensor
 from natsort import natsorted
 from tifffile import TiffWriter
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch.utils.tensorboard import SummaryWriter
 
 from qu.data.manager import MaskType
-from qu.models.core import AttentionUNet2D, Architecture
+from qu.models.core import AttentionUNet2D, Architectures, Losses, Optimizers
 from qu.transform.extern.monai import ToOneHot
 from qu.transform.extern.monai import Identity, LoadMask
 from qu.models.abstract_base_learner import AbstractBaseLearner
@@ -48,12 +48,17 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
     def __init__(
             self,
-            architecture: Architecture = Architecture.ResidualUNet2D,
+            architecture: Architectures = Architectures.ResidualUNet2D,
+            loss: Losses = Losses.GeneralizedDiceLoss,
+            optimizer: Optimizers = Optimizers.Adam,
             mask_type: MaskType = MaskType.TIFF_LABELS,
             in_channels: int = 1,
             out_channels: int = 3,
             roi_size: Tuple[int, int] = (384, 384),
             num_filters_in_first_layer: int = 16,
+            learning_rate: float = 0.001,
+            weight_decay: float = 0.0001,
+            momentum: float = 0.9,
             num_epochs: int = 400,
             batch_sizes: Tuple[int, int, int, int] = (8, 1, 1, 1),
             num_workers: Tuple[int, int, int, int] = (4, 4, 1, 1),
@@ -75,8 +80,14 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
             @see qu.data.model.MaskType
 
-        @param architecture: Architecture
-            Core network architecture: one of (Architecture.ResidualUNet2D, Architecture.AttentionUNet2D)
+        @param architecture: Architectures
+            Core network architecture: one of (Architectures.ResidualUNet2D, Architectures.AttentionUNet2D)
+
+        @param loss: Losses
+            Loss function: currently only Losses.GeneralizedDiceLoss is supported
+
+        @param optimizer: Optimizers
+            Optimizer: one of (Optimizers.Adam, Optimizers.SGD)
 
         @param in_channels: int, optional: default = 1
             Number of channels in the input (e.g. 1 for gray-value images).
@@ -89,6 +100,17 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         @param num_filters_in_first_layer: int
             Number of filters in the first layer. Every subsequent layer doubles the number of filters.
+
+        @param learning_rate: float, optional: default = 1e-3
+            Initial learning rate for the optimizer.
+
+        @param weight_decay: float, optional: default = 1e-4
+            Weight decay of the learning rate for the optimizer.
+            Used by the Adam optimizer.
+
+        @param momentum: float, optional: default = 0.9
+            Momentum of the accelerated gradient for the optimizer.
+            Used by the SGD optimizer.
 
         @param num_epochs: int, optional: default = 400
             Number of epochs for training.
@@ -134,8 +156,13 @@ class UNet2DSegmenter(AbstractBaseLearner):
         # Device (initialize as "cpu")
         self._device = "cpu"
 
-        # Architecture
-        self._architecture = architecture
+        # Architecture, loss function and optimizer
+        self._option_architecture = architecture
+        self._option_loss = loss
+        self._option_optimizer = optimizer
+        self._learning_rate = learning_rate
+        self._weight_decay = weight_decay
+        self._momentum = momentum
 
         # Mask type
         self._mask_type = mask_type
@@ -972,7 +999,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
             torch.cuda.empty_cache()
 
         # Instantiate the requested model
-        if self._architecture == Architecture.ResidualUNet2D:
+        if self._option_architecture == Architectures.ResidualUNet2D:
             # Monai's UNet
             self._model = UNet(
                 dimensions=2,
@@ -983,7 +1010,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
                 num_res_units=2
             ).to(self._device)
 
-        elif self._architecture == Architecture.AttentionUNet2D:
+        elif self._option_architecture == Architectures.AttentionUNet2D:
 
             # Attention U-Net
             self._model = AttentionUNet2D(
@@ -993,42 +1020,42 @@ class UNet2DSegmenter(AbstractBaseLearner):
             ).to(self._device)
 
         else:
-            raise ValueError(f"Unexpected architecture {self._architecture}! Aborting.")
+            raise ValueError(f"Unexpected architecture {self._option_architecture}! Aborting.")
 
     def _define_training_loss(self) -> None:
         """Define the loss function."""
 
-        self._training_loss_function = GeneralizedDiceLoss(
-            include_background=True,
-            to_onehot_y=False,
-            softmax=True,
-            batch=True,
-        )
+        if self._option_loss == Losses.GeneralizedDiceLoss:
+            self._training_loss_function = GeneralizedDiceLoss(
+                include_background=True,
+                to_onehot_y=False,
+                softmax=True,
+                batch=True,
+            )
+        else:
+            raise ValueError(f"Unknown loss option {self._option_loss}! Aborting.")
 
-    def _define_optimizer(
-            self,
-            learning_rate: float = 1e-3,
-            weight_decay: float = 1e-4
-    ) -> None:
-        """Define the optimizer.
-
-        @param learning_rate: float, optional, default = 1e-3
-            Initial learning rate for the optimizer.
-
-        @param weight_decay: float, optional, default = 1e-4
-            Weight decay of the learning rate for the optimizer.
-
-        """
+    def _define_optimizer(self) -> None:
+        """Define the optimizer."""
 
         if self._model is None:
             return
 
-        self._optimizer = Adam(
-            self._model.parameters(),
-            learning_rate,
-            weight_decay=weight_decay,
-            amsgrad=True
-        )
+        if self._option_optimizer == Optimizers.Adam:
+            self._optimizer = Adam(
+                self._model.parameters(),
+                self._learning_rate,
+                weight_decay=self._weight_decay,
+                amsgrad=True
+            )
+        elif self._option_optimizer == Optimizers.SGD:
+            self._optimizer = SGD(
+                self._model.parameters(),
+                lr=self._learning_rate,
+                momentum=self._momentum
+            )
+        else:
+            raise ValueError(f"Unknown optimizer option {self._option_optimizer}! Aborting.")
 
     def _define_validation_metric(self):
         """Define the metric for validation function."""
@@ -1054,9 +1081,9 @@ class UNet2DSegmenter(AbstractBaseLearner):
         date_time = now.strftime("%Y%m%d_%H%M%S")
 
         # Experiment name
-        experiment_name = f"{self._raw_experiment_name}_{str(self._architecture)}_{date_time}" \
+        experiment_name = f"{self._raw_experiment_name}_{str(self._option_architecture)}_{date_time}" \
             if self._raw_experiment_name != "" \
-            else f"{str(self._architecture)}_{date_time}"
+            else f"{str(self._option_architecture)}_{date_time}"
         experiment_name = runs_dir / experiment_name
 
         # Best model file name

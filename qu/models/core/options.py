@@ -13,6 +13,15 @@
 from enum import IntEnum
 
 
-class Architecture(IntEnum):
+class Architectures(IntEnum):
     ResidualUNet2D = 0,
     AttentionUNet2D = 1
+
+
+class Losses(IntEnum):
+    GeneralizedDiceLoss = 0
+
+
+class Optimizers(IntEnum):
+    Adam = 0,
+    SGD = 1

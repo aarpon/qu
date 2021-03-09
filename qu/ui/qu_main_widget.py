@@ -172,9 +172,8 @@ class QuMainWidget(QWidget):
         demo_3_classes_segmentation_action.triggered.connect(self._on_qu_demo_3_classes_segmentation_action)
         segmentation_demos_menu.addAction(demo_3_classes_segmentation_action)
 
-        demo_2_classes_segmentation_action = QAction(QIcon(":/icons/download.png"), "2 classes (will follow)", self)
+        demo_2_classes_segmentation_action = QAction(QIcon(":/icons/download.png"), "2 classes", self)
         demo_2_classes_segmentation_action.triggered.connect(self._on_qu_demo_2_classes_segmentation_action)
-        demo_2_classes_segmentation_action.setEnabled(False)
         segmentation_demos_menu.addAction(demo_2_classes_segmentation_action)
 
         # demos_menu.addMenu(segmentation_demos_menu)
@@ -197,7 +196,7 @@ class QuMainWidget(QWidget):
         self.pBSelectDataRootFolder.clicked.connect(self._on_select_data_root_folder)
         self.hsImageSelector.valueChanged.connect(self._on_selector_value_changed)
 
-        # Architecture picker
+        # Architectures picker
         self.cbArchitecturePicker.currentIndexChanged.connect(self._on_architecture_changed)
 
         # Training
@@ -594,10 +593,15 @@ class QuMainWidget(QWidget):
         if arch == 0:
             self._learner = UNet2DSegmenter(
                 architecture=self._learner_settings.architecture,
+                loss=self._learner_settings.loss,
+                optimizer=self._learner_settings.optimizer,
                 mask_type=self._data_manager.mask_type,
                 in_channels=self._data_manager.num_input_channels,
                 out_channels=self._data_manager.num_classes,
                 roi_size=self._learner_settings.roi_size,
+                learning_rate=self._learner_settings.learning_rate,
+                weight_decay=self._learner_settings.weight_decay,
+                momentum=self._learner_settings.momentum,
                 num_epochs=self._learner_settings.num_epochs,
                 batch_sizes=self._learner_settings.batch_sizes,
                 num_workers=self._learner_settings.num_workers,

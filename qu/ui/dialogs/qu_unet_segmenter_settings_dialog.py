@@ -16,10 +16,10 @@ import math
 
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSlot
-from PyQt5.QtGui import QIntValidator
+from PyQt5.QtGui import QIntValidator, QDoubleValidator
 from PyQt5.QtWidgets import QDialog
 
-from qu.models.core import Architecture
+from qu.models.core import Architectures, Losses, Optimizers
 from qu.ui import _ui_folder_path
 
 
@@ -55,6 +55,9 @@ class QuUNetSegmenterSettingsDialog(QDialog):
     def _set_validators(self):
         """Set validators on edit fields."""
         self.leNumEpochs.setValidator(QIntValidator(1, 1000000000, self))
+        self.leLearningRate.setValidator(QDoubleValidator(0.0, 1.0, 8, self))
+        self.leWeightDecay.setValidator(QDoubleValidator(0.0, 1.0, 8, self))
+        self.leMomentum.setValidator(QDoubleValidator(0.0, 1.0, 8, self))
         self.leValidationStep.setValidator(QIntValidator(1, 1000000000, self))
         self.leTrainingBatchSize.setValidator(QIntValidator(1, 1000000000, self))
         self.lineEditROIHeight.setValidator(QIntValidator(1, 1000000000, self))
@@ -65,6 +68,11 @@ class QuUNetSegmenterSettingsDialog(QDialog):
     def _fill_ui_fields(self):
         """Fill the UI elements with the values in the settings."""
         self.cbArchitecture.setCurrentIndex(self._settings.architecture.value)
+        self.cbLoss.setCurrentIndex(self._settings.loss.value)
+        self.cbOptimizer.setCurrentIndex(self._settings.optimizer.value)
+        self.leLearningRate.setText(str(self._settings.learning_rate))
+        self.leWeightDecay.setText(str(self._settings.weight_decay))
+        self.leMomentum.setText(str(self._settings.momentum))
         self.leNumEpochs.setText(str(self._settings.num_epochs))
         self.cbNumFiltersInFirstLayer.setCurrentIndex(int(math.log2(self._settings.num_filters_in_first_layer) - 1))
         self.leValidationStep.setText(str(self._settings.validation_step))
@@ -77,6 +85,11 @@ class QuUNetSegmenterSettingsDialog(QDialog):
     def _set_connections(self):
         """Plug signals and slots"""
         self.cbArchitecture.currentIndexChanged.connect(self._on_architecture_value_changed)
+        self.cbLoss.currentIndexChanged.connect(self._on_loss_value_changed)
+        self.cbOptimizer.currentIndexChanged.connect(self._on_optimizer_value_changed)
+        self.leLearningRate.textChanged.connect(self._on_learning_rate_text_changed)
+        self.leWeightDecay.textChanged.connect(self._on_weight_decay_text_changed)
+        self.leMomentum.textChanged.connect(self._on_momentum_text_changed)
         self.leNumEpochs.textChanged.connect(self._on_num_epochs_text_changed)
         self.cbNumFiltersInFirstLayer.currentIndexChanged.connect(self._on_num_filters_in_first_layer_changed)
         self.leValidationStep.textChanged.connect(self._on_validation_step_text_changed)
@@ -98,11 +111,74 @@ class QuUNetSegmenterSettingsDialog(QDialog):
     def _on_architecture_value_changed(self, value):
         """Architecure."""
         if value == 0:
-            self._settings.architecture = Architecture.ResidualUNet2D
+            self._settings.architecture = Architectures.ResidualUNet2D
         elif value == 1:
-            self._settings.architecture = Architecture.AttentionUNet2D
+            self._settings.architecture = Architectures.AttentionUNet2D
         else:
             raise ValueError(f"Unexpected option {value} for architecture.")
+
+    @pyqtSlot(int, name="_on_loss_value_changed")
+    def _on_loss_value_changed(self, value):
+        """Loss function."""
+        if value == 0:
+            self._settings.loss = Losses.GeneralizedDiceLoss
+        else:
+            raise ValueError(f"Unexpected option {value} for loss.")
+
+    @pyqtSlot(int, name="_on_optimizer_value_changed")
+    def _on_optimizer_value_changed(self, value):
+        """Optimizer."""
+        if value == 0:
+            self._settings.optimizer = Optimizers.Adam
+        elif value == 1:
+            self._settings.optimizer = Optimizers.SGD
+        else:
+            raise ValueError(f"Unexpected option {value} for optimizer.")
+
+    @pyqtSlot('QString', name="_on_learning_rate_text_changed")
+    def _on_learning_rate_text_changed(self, str_value):
+        """Learning rate."""
+        # The DoubleValidator allows empty strings.
+        if str_value == '':
+            return
+        value = float(str_value)
+        if value < 0.0:
+            value = 0.0
+            self.leLearningRate.setText(str(value))
+        if value > 1.0:
+            value = 1.0
+            self.leLearningRate.setText(str(value))
+        self._settings.learning_rate = value
+
+    @pyqtSlot('QString', name="_on_weight_decay_text_changed")
+    def _on_weight_decay_text_changed(self, str_value):
+        """Learning rate."""
+        # The DoubleValidator allows empty strings.
+        if str_value == '':
+            return
+        value = float(str_value)
+        if value < 0.0:
+            value = 0.0
+            self.leWeightDecay.setText(str(value))
+        if value > 1.0:
+            value = 1.0
+            self.leWeightDecay.setText(str(value))
+        self._settings.weight_decay = value
+
+    @pyqtSlot('QString', name="_on_momentum_text_changed")
+    def _on_momentum_text_changed(self, str_value):
+        """Learning rate."""
+        # The DoubleValidator allows empty strings.
+        if str_value == '':
+            return
+        value = float(str_value)
+        if value < 0.0:
+            value = 0.0
+            self.leMomentum.setText(str(value))
+        if value > 1.0:
+            value = 1.0
+            self.leMomentum.setText(str(value))
+        self._settings.momentum = value
 
     @pyqtSlot('QString', name="_on_num_epochs_text_changed")
     def _on_num_epochs_text_changed(self, str_value):

@@ -14,7 +14,7 @@ import os
 from dataclasses import dataclass
 from typing import Tuple
 
-from qu.models.core import Architecture
+from qu.models.core import Architectures, Losses, Optimizers
 
 
 @dataclass
@@ -22,7 +22,22 @@ class UNet2DSegmenterSettings:
     """Settings for the UNet segmenter."""
 
     # Architecture
-    architecture: Architecture = Architecture.ResidualUNet2D
+    architecture: Architectures = Architectures.ResidualUNet2D
+
+    # Loss function
+    loss: Losses = Losses.GeneralizedDiceLoss
+
+    # Optimizer
+    optimizer: Optimizers = Optimizers.Adam
+
+    # Learning rate
+    learning_rate: float = 0.001
+
+    # Weight decay (Adam)
+    weight_decay: float = 0.0001
+
+    # Momentum (SGD)
+    momentum: float = 0.9
 
     # Number of epochs
     num_epochs: int = 10
@@ -54,6 +69,11 @@ class UNet2DSegmenterSettings:
         """Return settings as a dictionary."""
         return {
             "architecture": self.architecture,
+            "loss": self.loss,
+            "optimizer": self.optimizer,
+            "learning_rate": self.learning_rate,
+            "weight_decay": self.weight_decay,
+            "momentum": self.momentum,
             "num_epochs": self.num_epochs,
             "validation_step": self.validation_step,
             "batch_sizes": self.batch_sizes,
