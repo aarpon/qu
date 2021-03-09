@@ -11,4 +11,4 @@
 
 #   *******************************************************************************/
 
-from .diagnostic_tool import SegmentationDiagnostic
+from .diagnostic_tool import SegmentationDiagnostics

@@ -13,23 +13,23 @@
 #   a segmentation  using ground truth masks and prediction results
 
 
+import os
+import sys
+import time
+from statistics import mean
+
 # object based analysis of results
 import cv2
-import os
-from statistics import mean, stdev
-from sklearn.metrics import confusion_matrix, f1_score
-import seaborn as sns
-from pathlib import PurePath
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
-import time
 from scipy.stats import kstest
+from sklearn.metrics import confusion_matrix
 
 # batch assessment
 
-class SegmentationDiagnostic():
-    """creates a segmentation diagnostic that analyses quality
+class SegmentationDiagnostics:
+    """creates a segmentation diagnostics that analyses quality
     of (one or more) prediction batches compared to ground truth"""
 
     def __init__(self, gt_fold_path, pred_fold_path=None):
@@ -78,6 +78,10 @@ class SegmentationDiagnostic():
             if not isinstance(pred_fold_path, list):
                 pred_fold_path = [pred_fold_path]
             self.pred_infos = [self.load_batch_infos(path) for path in pred_fold_path]
+
+        # Figure
+        plt.style.use("dark_background")
+        self._fig, self._ax = plt.subplots(ncols=2, nrows=2, figsize=(15, 15))
 
     def evaluate_segmentation(self, save_path=None):
         """wrapper to perform all segmentation evaluation and create
@@ -135,16 +139,14 @@ class SegmentationDiagnostic():
             self.pred_batch_metrics.insert(pred_num, self.calc_batch_metrics(pred_num))
 
             # plot
-            plot = self.plot_metrics(pred_num)
+            self.plot_metrics(pred_num)
             if not save_path:
                 save_path = os.path.dirname(self.pred_infos[pred_num]['path'])
 
             output_name = self.pred_infos[pred_num]['exp_name'] + ".png"
             full_save_path = os.path.join(save_path, output_name)
-            plot.savefig(full_save_path)
-            plot.show()
+            self._fig.savefig(full_save_path)
             return full_save_path
-
 
     def load_batch_infos(self, path, exp_name=None) -> dict:
         """pre_loads batch of images, setting name and number
@@ -206,9 +208,9 @@ class SegmentationDiagnostic():
             # get size distribution
             metrics_dic["cell_sizes"] = metrics_dic["cell_sizes"] + self._get_cell_size(img, cnts, dist_trans)
             if verbose >= 2:
-                print(f"cell sizes :", metrics_dic['cell_sizes'])
+                print(f"cell sizes : {metrics_dic['cell_sizes']}")
         if verbose >= 2:
-            print(f"final dictionary", metrics_dic.items(), )
+            print(f"final dictionary {metrics_dic.items()}")
         return metrics_dic
 
     def calc_advanced_image_metrics(self, pred_num, verbose=False):
@@ -267,10 +269,7 @@ class SegmentationDiagnostic():
         # store dictionary as attribute
         return batch_metrics
 
-    def plot_metrics(self, pred_num=0, style=None, verbose=None):
-        if not style:
-            style = "dark_background"
-        plt.style.use(style)
+    def plot_metrics(self, pred_num=0, verbose=None):
 
         # get infos and metrics
         pred_infos = self.pred_infos[pred_num]
@@ -278,51 +277,48 @@ class SegmentationDiagnostic():
         pred_metrics = self.pred_metrics[pred_num]
         pred_batch_metrics = self.pred_batch_metrics[pred_num]
 
-        # create plots on errors
-        fig, axs = plt.subplots(ncols=2, nrows=2, figsize=(15, 15))
-
         # plot 1 - cell count
         # get data
         gt_cell_count = gt_metrics['cell_count']
         pred_cell_count = pred_metrics['cell_count']
         max_ax_range = np.quantile(np.array(pred_cell_count).flatten(), 0.95)
         # create plot
-        axs[0, 0].scatter(np.array(gt_cell_count), np.array(pred_cell_count) )
-        axs[0, 0].set_xlim([0, max_ax_range])
-        axs[0, 0].set_ylim([0, max_ax_range])
-        axs[0, 0].set_title(f"number of cells per image - RMSE: {pred_batch_metrics['cell_count_RMSE']}")
-        axs[0, 0].set_xlabel("ground truth")
-        axs[0, 0].set_ylabel("prediction")
+        self._ax[0, 0].scatter(np.array(gt_cell_count), np.array(pred_cell_count) )
+        self._ax[0, 0].set_xlim([0, max_ax_range])
+        self._ax[0, 0].set_ylim([0, max_ax_range])
+        self._ax[0, 0].set_title(f"Number of cells per image - RMSE: {pred_batch_metrics['cell_count_RMSE']}")
+        self._ax[0, 0].set_xlabel("ground truth")
+        self._ax[0, 0].set_ylabel("prediction")
 
         # plot 2 - cell size
         # get data
         gt_sizes = gt_metrics["cell_sizes"]
         pred_sizes = pred_metrics["cell_sizes"]
         # plot
-        axs[0, 1].violinplot([gt_sizes, pred_sizes])
-        axs[0, 1].set_title(f"Size of cells - ks p score: {pred_batch_metrics['ks_p']}")
-        axs[0, 1].set_xticks([1, 2])
-        axs[0, 1].set_xticklabels(["ground truth", "prediction"])
-        axs[0, 1].set_ylim([0, 40])
+        self._ax[0, 1].violinplot([gt_sizes, pred_sizes])
+        self._ax[0, 1].set_title(f"Size of cells - ks p score: {pred_batch_metrics['ks_p']}")
+        self._ax[0, 1].set_xticks([1, 2])
+        self._ax[0, 1].set_xticklabels(["ground truth", "prediction"])
+        self._ax[0, 1].set_ylim([0, 40])
 
         # plt 3 intersection over union
         # get data
         ious = pred_metrics['ious']
         # plot
-        axs[1, 0].boxplot(ious)
-        axs[1, 0].set_title(f"Position of cells - Jaccard index: {pred_batch_metrics['iou_mean']}")
-        axs[1, 0].set_ylim([.50,1])
+        self._ax[1, 0].boxplot(ious)
+        self._ax[1, 0].set_title(f"Cells overlap - Jaccard index: {pred_batch_metrics['iou_mean']}")
+        self._ax[1, 0].set_ylim([.50,1])
 
         # plt 4 f_score
         # get data
         f1_scores = pred_metrics['image_f1']
         # plot
-        axs[1, 1].hist(f1_scores)
-        axs[1, 1].set_title(f"classification accuracy - f1 score: {pred_batch_metrics['f1_score']}")
-        axs[1, 1].set_xlim([0.5, 1])
+        self._ax[1, 1].hist(f1_scores)
+        self._ax[1, 1].set_title(f"Classification accuracy - f1 score: {pred_batch_metrics['f1_score']}")
+        self._ax[1, 1].set_xlim([0.5, 1])
 
-        fig.suptitle(f"{pred_infos['exp_name']} diagnostic")
-        return fig
+        self._fig.suptitle(f"{pred_infos['exp_name']} diagnostic")
+        self._fig.show()
 
     def _get_contours(self, img) -> object:
         """ get contours of distinct objects in mask
@@ -411,11 +407,3 @@ class SegmentationDiagnostic():
             class_f1_score = 2 * (precision * recall) / (precision + recall)
             f1_score += class_f1_score
         return f1_score / 3
-
-
-if __name__ == "__main__":
-    gt_path = "/home/matt/.qu/data/demo_segmentation/masks"
-    pred_path = "/home/matt/.qu/data/demo_segmentation/UNET_preds"
-    from qu.processing import SegmentationDiagnostic
-    dig = SegmentationDiagnostic(gt_path, pred_path)
-    dig.evaluate_segmentation()

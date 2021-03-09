@@ -10,7 +10,6 @@
 #   *******************************************************************************/
 #
 
-from builtins import int
 from pathlib import Path
 from typing import Union
 
@@ -149,4 +148,52 @@ class PredictorManager(WorkerBase):
         self.signals.returned.emit(success)
 
 
+class SegmentationDiagnosticsManager(WorkerBase):
+    """Runs the SegmentationDiagnostics Tool in a separate Qt thread.
 
+    Extends napari's WorkerBase.
+    """
+
+    def __init__(self, segm_diag):
+        """Constructor.
+
+        @param segm_diag: obj
+            SegmentationDiagnostics tool to be injected.
+        """
+
+        # Call base constructor
+        super().__init__()
+
+        # Store reference to the Segmentation Diagnostics tool
+        self._segm_diag = segm_diag
+
+        # Error message
+        self._message = ""
+
+    @pyqtSlot()
+    def run(self):
+        """Run method to be executed in a separate thread."""
+
+        # Emit started signal
+        self.signals.started.emit()
+
+        if self._segm_diag is None:
+            # Emit the errored signal with the error message
+            self.signals.errored.emit("The Segmentation Diagnostics tool was not properly initialized!")
+
+            plot_path = False
+
+        else:
+
+            # Run the tool
+            plot_path = self._segm_diag.evaluate_segmentation()
+
+            if not plot_path:
+                # Emit the errored signal with the error message
+                self.signals.errored.emit("The Segmentation Diagnostics tool failed!")
+
+        # Emit the finished signal
+        self.signals.finished.emit()
+
+        # Emit the returned signal with value `plot_path`
+        self.signals.returned.emit(plot_path)

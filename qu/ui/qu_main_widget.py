@@ -25,15 +25,14 @@ from qu import __version__
 from qu.demo import get_demo_segmentation_dataset, get_demo_restoration_dataset
 from qu.models import UNet2DSegmenter, UNet2DRestorer, UNet2DRestorerSettings
 from qu.models import UNet2DSegmenterSettings
+from qu.processing import SegmentationDiagnostics
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataManager, ExperimentType
 from qu.ui.dialogs.qu_unet_restorer_settings_dialog import QuUNetMapperSettingsDialog
 from qu.ui.qu_logger_widget import QuLoggerWidget
 from qu.ui.dialogs.qu_unet_segmenter_settings_dialog import QuUNetSegmenterSettingsDialog
-from qu.ui.threads import LearnerManager, PredictorManager
-
-from qu.processing import SegmentationDiagnostic
+from qu.ui.threads import LearnerManager, PredictorManager, SegmentationDiagnosticsManager
 
 
 class QuMainWidget(QWidget):
@@ -58,6 +57,9 @@ class QuMainWidget(QWidget):
 
         # Keep a reference to the settings for the learner (instantiate to the first one)
         self._learner_settings = self._all_learners_settings[0][1]
+
+        # Keep a reference to the segmentation diagnostics tool
+        self._segm_diagnostics = None
 
         # Store a reference to the napari viewer
         self._viewer = viewer
@@ -679,7 +681,7 @@ class QuMainWidget(QWidget):
         # Ask the user to pick the ground truth folder
         gt_dir = QFileDialog.getExistingDirectory(
             None,
-            "Select GROUND TRUTH Directory..."
+            "Select masks (ground truth) directory..."
         )
         if gt_dir == '':
             # The user cancelled the selection
@@ -688,20 +690,24 @@ class QuMainWidget(QWidget):
         # Ask the user to pick the segmentation folder
         segm_dir = QFileDialog.getExistingDirectory(
             None,
-            "Select Prediction Directory..."
+            "Select prediction directory..."
         )
         if segm_dir == '':
             # The user cancelled the selection
             return
 
-        print("starting segmentation diagnostic")
-        dig = SegmentationDiagnostic(gt_dir, segm_dir)
-        output_plots = dig.evaluate_segmentation()
-        print("segmentation diagnostic ended")
-        # TODO: missing open png image
-        # TODO: add process to thread to avoid blocking UI
-        print(f"output saved as {output_plots}")
-        pass
+        # Initialize SegmentationDiagnostics object
+        self._segm_diagnostics = SegmentationDiagnostics(gt_dir, segm_dir)
+
+        # Wrap the SegmentationDiagnostics tool into its Manager
+        segmManager = SegmentationDiagnosticsManager(self._segm_diagnostics)
+
+        # Run the training in a separate Qt thread
+        segmManager.signals.started.connect(self._on_segm_diagnostics_start)
+        segmManager.signals.errored.connect(self._on_segm_diagnostics_error)
+        segmManager.signals.finished.connect(self._on_segm_diagnostics_completed)
+        segmManager.signals.returned.connect(self._on_segm_diagnostics_returned)
+        QThreadPool.globalInstance().start(segmManager)
 
     @pyqtSlot(name="_on_qu_save_mask_action")
     def _on_qu_save_mask_action(self):
@@ -1058,6 +1064,34 @@ class QuMainWidget(QWidget):
     def _on_prediction_error(self, err):
         """Called if prediction failed."""
         print(f"Prediction error: {str(err)}", file=self._err_stream)
+
+    @pyqtSlot(name="_on_segm_diagnostics_start")
+    def _on_segm_diagnostics_start(self):
+        """Called when segmentation diagnostics is started."""
+        print("Segmentation diagnostics started. This may take a while...", file=self._out_stream)
+
+    @pyqtSlot(name="_on_segm_diagnostics_completed")
+    def _on_segm_diagnostics_completed(self):
+        """Called when segmentation diagnostics is complete."""
+        print("All segmentation diagnostics threads returned.", file=self._out_stream)
+
+    @pyqtSlot(object, name="_on_segm_diagnostics_returned")
+    def _on_segm_diagnostics_returned(self, value):
+        """Called when segmentation diagnostics returned."""
+        if value:
+            value = str(value)
+            # Inform
+            print(f"Segmentation diagnostics was successful.", file=self._out_stream)
+            print(f"Output report was saved to {value}.", file=self._out_stream)
+
+        else:
+            # Inform
+            print(f"Segmentation diagnostics was not successful.", file=self._out_stream)
+
+    @pyqtSlot(object, name="_on_segm_diagnostics_error")
+    def _on_segm_diagnostics_error(self, err):
+        """Called if segmentation diagnostics failed."""
+        print(f"Segmentation diagnostics error: {str(err)}", file=self._err_stream)
 
     @pyqtSlot(name="_on_free_memory_and_report")
     def _on_free_memory_and_report(self):
