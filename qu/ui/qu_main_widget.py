@@ -33,6 +33,8 @@ from qu.ui.qu_logger_widget import QuLoggerWidget
 from qu.ui.dialogs.qu_unet_segmenter_settings_dialog import QuUNetSegmenterSettingsDialog
 from qu.ui.threads import LearnerManager, PredictorManager
 
+from qu.processing import SegmentationDiagnostic
+
 
 class QuMainWidget(QWidget):
 
@@ -150,13 +152,18 @@ class QuMainWidget(QWidget):
         # Add separator
         qu_menu.addSeparator()
 
-        # Add tools submenu
-        tools_menu = qu_menu.addMenu("Tools")
+        # Add Diagnostics submenu
+        diagnostics_menu = qu_menu.addMenu("Diagnostics")
 
-        # Add placeholder for now
+        # Add Launch Tensorboard action
         launch_tensorboard_action = QAction("Launch tensorboard", self)
         launch_tensorboard_action.triggered.connect(self._on_launch_tensorboard_action)
-        tools_menu.addAction(launch_tensorboard_action)
+        diagnostics_menu.addAction(launch_tensorboard_action)
+
+        # Add segmentation diagnostics
+        seg_diagnostic = QAction("Segmentation diagnostics", self)
+        seg_diagnostic.triggered.connect(self._on_qu_segmentation_diagnostic)
+        diagnostics_menu.addAction(seg_diagnostic)
 
         # Add separator
         qu_menu.addSeparator()
@@ -576,7 +583,6 @@ class QuMainWidget(QWidget):
             new_settings_tuple = (self._all_learners_settings[arch][0], settings_copy)
             self._all_learners_settings[arch] = new_settings_tuple
 
-
     @pyqtSlot(name="_on_run_training")
     def _on_run_training(self):
         """Instantiate the Learner (if needed) and run the training."""
@@ -631,8 +637,8 @@ class QuMainWidget(QWidget):
         # Get the data
         try:
             train_image_names, train_mask_names, \
-                val_image_names, val_mask_names, \
-                test_image_names, test_mask_names = self._data_manager.training_split()
+            val_image_names, val_mask_names, \
+            test_image_names, test_mask_names = self._data_manager.training_split()
         except ValueError as e:
             print(f"Error: {str(e)}. Aborting...", file=self._err_stream)
             return
@@ -666,6 +672,36 @@ class QuMainWidget(QWidget):
         print(f"Qu version {__version__}", file=self._out_stream)
         print(f"pytorch version {__torch_version__}", file=self._out_stream)
         print(f"monai version {__monai_version__}", file=self._out_stream)
+
+    @pyqtSlot(name="_on_qu_segmentation_diagnostic")
+    def _on_qu_segmentation_diagnostic(self):
+        """Qu call segmentation diagnostic"""
+        # Ask the user to pick the ground truth folder
+        gt_dir = QFileDialog.getExistingDirectory(
+            None,
+            "Select GROUND TRUTH Directory..."
+        )
+        if gt_dir == '':
+            # The user cancelled the selection
+            return
+
+        # Ask the user to pick the segmentation folder
+        segm_dir = QFileDialog.getExistingDirectory(
+            None,
+            "Select Prediction Directory..."
+        )
+        if segm_dir == '':
+            # The user cancelled the selection
+            return
+
+        print("starting segmentation diagnostic")
+        dig = SegmentationDiagnostic(gt_dir, segm_dir)
+        output_plots = dig.evaluate_segmentation()
+        print("segmentation diagnostic ended")
+        # TODO: missing open png image
+        # TODO: add process to thread to avoid blocking UI
+        print(f"output saved as {output_plots}")
+        pass
 
     @pyqtSlot(name="_on_qu_save_mask_action")
     def _on_qu_save_mask_action(self):

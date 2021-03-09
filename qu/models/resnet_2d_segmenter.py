@@ -7,8 +7,10 @@
 #   *
 #   * Contributors:
 #   *     Aaron Ponti - initial API and implementation
+#   *     Mateo Jucker Riva - resnet integration
 #   *******************************************************************************/
-#
+#   NOTES:
+#   this module implements the HighResNet model from Monai
 
 import sys
 from datetime import datetime
@@ -25,47 +27,39 @@ from monai.data import ArrayDataset, DataLoader, Dataset
 from monai.inferers import sliding_window_inference
 from monai.losses import GeneralizedDiceLoss
 from monai.metrics import DiceMetric
-from monai.networks.nets import UNet
+from monai.networks.nets import HighResNet
 from monai.utils import set_determinism
 from monai.transforms import Activations, AddChannel, AsDiscrete, \
     Compose, LoadImage, RandRotate90, RandSpatialCrop, \
-    ScaleIntensity, ToTensor
+    RandGaussianNoise, ScaleIntensity, ToTensor
 from natsort import natsorted
 from tifffile import TiffWriter
-from torch.optim import Adam, SGD
+from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 
 from qu.data.manager import MaskType
-from qu.models.core import AttentionUNet2D, Architectures, Losses, Optimizers
 from qu.transform.extern.monai import ToOneHot
 from qu.transform.extern.monai import Identity, LoadMask
 from qu.models.abstract_base_learner import AbstractBaseLearner
 from qu.transform import one_hot_stack_to_label_image
 
 
-class UNet2DSegmenter(AbstractBaseLearner):
+class ResnetSegmenter(AbstractBaseLearner):
     """Segmenter based on the U-Net architecture."""
 
     def __init__(
             self,
-            architecture: Architectures = Architectures.ResidualUNet2D,
-            loss: Losses = Losses.GeneralizedDiceLoss,
-            optimizer: Optimizers = Optimizers.Adam,
             mask_type: MaskType = MaskType.TIFF_LABELS,
             in_channels: int = 1,
             out_channels: int = 3,
             roi_size: Tuple[int, int] = (384, 384),
-            num_filters_in_first_layer: int = 16,
-            learning_rate: float = 0.001,
-            weight_decay: float = 0.0001,
-            momentum: float = 0.9,
             num_epochs: int = 400,
             batch_sizes: Tuple[int, int, int, int] = (8, 1, 1, 1),
             num_workers: Tuple[int, int, int, int] = (4, 4, 1, 1),
             validation_step: int = 2,
             sliding_window_batch_size: int = 4,
             class_names: Tuple[str, ...] = ("Background", "Object", "Border"),
-            experiment_name: str = "Unet",
+            experiment_name: str = "HighResNet",
             model_name: str = "best_model",
             seed: int = 4294967295,
             working_dir: str = '.',
@@ -80,15 +74,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
             @see qu.data.model.MaskType
 
-        @param architecture: Architectures
-            Core network architecture: one of (Architectures.ResidualUNet2D, Architectures.AttentionUNet2D)
-
-        @param loss: Losses
-            Loss function: currently only Losses.GeneralizedDiceLoss is supported
-
-        @param optimizer: Optimizers
-            Optimizer: one of (Optimizers.Adam, Optimizers.SGD)
-
         @param in_channels: int, optional: default = 1
             Number of channels in the input (e.g. 1 for gray-value images).
 
@@ -97,20 +82,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         @param roi_size: Tuple[int, int], optional: default = (384, 384)
             Crop area (and input size of the U-Net network) used for training and validation/prediction.
-
-        @param num_filters_in_first_layer: int
-            Number of filters in the first layer. Every subsequent layer doubles the number of filters.
-
-        @param learning_rate: float, optional: default = 1e-3
-            Initial learning rate for the optimizer.
-
-        @param weight_decay: float, optional: default = 1e-4
-            Weight decay of the learning rate for the optimizer.
-            Used by the Adam optimizer.
-
-        @param momentum: float, optional: default = 0.9
-            Momentum of the accelerated gradient for the optimizer.
-            Used by the SGD optimizer.
 
         @param num_epochs: int, optional: default = 400
             Number of epochs for training.
@@ -156,14 +127,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
         # Device (initialize as "cpu")
         self._device = "cpu"
 
-        # Architecture, loss function and optimizer
-        self._option_architecture = architecture
-        self._option_loss = loss
-        self._option_optimizer = optimizer
-        self._learning_rate = learning_rate
-        self._weight_decay = weight_decay
-        self._momentum = momentum
-
         # Mask type
         self._mask_type = mask_type
 
@@ -173,7 +136,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         # Define hyper parameters
         self._roi_size = roi_size
-        self._num_filters_in_first_layer = num_filters_in_first_layer
         self._training_batch_size = batch_sizes[0]
         self._validation_batch_size = batch_sizes[1]
         self._test_batch_size = batch_sizes[2]
@@ -265,7 +227,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
             return False
 
         # Define the transforms
-        self._define_training_transforms()
+        self._define_transforms()
 
         # Define the datasets and data loaders
         self._define_training_data_loaders()
@@ -707,8 +669,8 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         return label_img
 
-    def _define_training_transforms(self):
-        """Define and initialize all training data transforms.
+    def _define_transforms(self):
+        """Define and initialize all data transforms.
 
           * training set images transform
           * training set masks transform
@@ -749,6 +711,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
                 AddChannel(),
                 RandSpatialCrop(self._roi_size, random_size=False),
                 RandRotate90(prob=0.5, spatial_axes=(0, 1)),
+                RandGaussianNoise(prob=0.5, mean=0., std=0.2),
                 ToTensor()
             ]
         )
@@ -758,6 +721,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
                 MaskTransform,
                 RandSpatialCrop(self._roi_size, random_size=False),
                 RandRotate90(prob=0.5, spatial_axes=(0, 1)),
+                RandGaussianNoise(prob=0.5, mean=0., std=0.2),
                 ToTensor()
             ]
         )
@@ -796,6 +760,16 @@ class UNet2DSegmenter(AbstractBaseLearner):
             ]
         )
 
+        # Define transforms for prediction
+        self._prediction_image_transforms = Compose(
+            [
+                LoadImage(image_only=True),
+                ScaleIntensity(),
+                AddChannel(),
+                ToTensor()
+            ]
+        )
+
         # Post transforms
         self._validation_post_transforms = Compose(
             [
@@ -805,6 +779,13 @@ class UNet2DSegmenter(AbstractBaseLearner):
         )
 
         self._test_post_transforms = Compose(
+            [
+                Activations(softmax=True),
+                AsDiscrete(threshold_values=True)
+            ]
+        )
+
+        self._prediction_post_transforms = Compose(
             [
                 Activations(softmax=True),
                 AsDiscrete(threshold_values=True)
@@ -893,32 +874,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
         return True
 
-    def _define_prediction_transforms(self):
-        """Define and initialize all prediction data transforms.
-
-          * prediction set images transform
-          * prediction set images post-transform
-
-        @return True if data transforms could be instantiated, False otherwise.
-        """
-
-        # Define transforms for prediction
-        self._prediction_image_transforms = Compose(
-            [
-                LoadImage(image_only=True),
-                ScaleIntensity(),
-                AddChannel(),
-                ToTensor(),
-            ]
-        )
-
-        self._prediction_post_transforms = Compose(
-            [
-                Activations(softmax=True),
-                AsDiscrete(threshold_values=True),
-            ]
-        )
-
     def _define_prediction_data_loaders(
             self,
             prediction_folder_path: Union[Path, str]
@@ -955,9 +910,6 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
             return False
 
-        # Define the transforms
-        self._define_prediction_transforms()
-
         # Prediction
         self._prediction_dataset = Dataset(
             self._prediction_image_names,
@@ -990,7 +942,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
     def _define_model(self) -> None:
         """Instantiate the U-Net architecture."""
 
-        # Create U-Net
+        # Create RESNET
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device '{self._device}'.", file=self._stdout)
 
@@ -998,64 +950,49 @@ class UNet2DSegmenter(AbstractBaseLearner):
         if self._device != "cpu":
             torch.cuda.empty_cache()
 
-        # Instantiate the requested model
-        if self._option_architecture == Architectures.ResidualUNet2D:
-            # Monai's UNet
-            self._model = UNet(
-                dimensions=2,
-                in_channels=self._in_channels,
-                out_channels=self._out_channels,
-                channels=tuple((self._num_filters_in_first_layer * 2**i for i in range(0, 5))),
-                strides=(2, 2, 2, 2),
-                num_res_units=2
-            ).to(self._device)
-
-        elif self._option_architecture == Architectures.AttentionUNet2D:
-
-            # Attention U-Net
-            self._model = AttentionUNet2D(
-                img_ch=self._in_channels,
-                output_ch=self._out_channels,
-                n1=self._num_filters_in_first_layer
-            ).to(self._device)
-
-        else:
-            raise ValueError(f"Unexpected architecture {self._option_architecture}! Aborting.")
+        # Monai's RESNET
+        self._model = HighResNet(
+            spatial_dims=2,
+            in_channels=self._in_channels,
+            out_channels=self._out_channels,
+            norm_type=('batch', {'affine': True}),
+            acti_type=('relu', {'inplace': True}),
+            dropout_prob=0.2)
 
     def _define_training_loss(self) -> None:
         """Define the loss function."""
 
-        if self._option_loss == Losses.GeneralizedDiceLoss:
-            self._training_loss_function = GeneralizedDiceLoss(
-                include_background=True,
-                to_onehot_y=False,
-                softmax=True,
-                batch=True,
-            )
-        else:
-            raise ValueError(f"Unknown loss option {self._option_loss}! Aborting.")
+        self._training_loss_function = GeneralizedDiceLoss(
+            include_background=True,
+            to_onehot_y=False,
+            softmax=True,
+            batch=True,
+        )
 
-    def _define_optimizer(self) -> None:
-        """Define the optimizer."""
+    def _define_optimizer(
+            self,
+            learning_rate: float = 1e-3,
+            weight_decay: float = 1e-4
+    ) -> None:
+        """Define the optimizer.
+
+        @param learning_rate: float, optional, default = 1e-3
+            Initial learning rate for the optimizer.
+
+        @param weight_decay: float, optional, default = 1e-4
+            Weight decay of the learning rate for the optimizer.
+
+        """
 
         if self._model is None:
             return
 
-        if self._option_optimizer == Optimizers.Adam:
-            self._optimizer = Adam(
-                self._model.parameters(),
-                self._learning_rate,
-                weight_decay=self._weight_decay,
-                amsgrad=True
-            )
-        elif self._option_optimizer == Optimizers.SGD:
-            self._optimizer = SGD(
-                self._model.parameters(),
-                lr=self._learning_rate,
-                momentum=self._momentum
-            )
-        else:
-            raise ValueError(f"Unknown optimizer option {self._option_optimizer}! Aborting.")
+        self._optimizer = Adam(
+            self._model.parameters(),
+            learning_rate,
+            weight_decay=weight_decay,
+            amsgrad=True
+        )
 
     def _define_validation_metric(self):
         """Define the metric for validation function."""
@@ -1081,9 +1018,9 @@ class UNet2DSegmenter(AbstractBaseLearner):
         date_time = now.strftime("%Y%m%d_%H%M%S")
 
         # Experiment name
-        experiment_name = f"{self._raw_experiment_name}_{str(self._option_architecture)}_{date_time}" \
+        experiment_name = f"{self._raw_experiment_name}_{date_time}" \
             if self._raw_experiment_name != "" \
-            else f"{str(self._option_architecture)}_{date_time}"
+            else f"{date_time}"
         experiment_name = runs_dir / experiment_name
 
         # Best model file name
@@ -1100,3 +1037,11 @@ class UNet2DSegmenter(AbstractBaseLearner):
         print(f"{line_length * '-'}", file=file)
         print(f"{header_text}", file=self._stdout)
         print(f"{line_length * '-'}", file=file)
+
+
+if __name__ == "__main__":
+    a=ResnetSegmenter()
+    print(a)
+
+
+
