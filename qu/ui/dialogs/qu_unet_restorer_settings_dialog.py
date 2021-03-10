@@ -56,7 +56,7 @@ class QuUNetMapperSettingsDialog(QDialog):
         self.leTrainingBatchSize.setValidator(QIntValidator(1, 1000000000, self))
         self.lineEditROIHeight.setValidator(QIntValidator(1, 1000000000, self))
         self.lineEditROIWidth.setValidator(QIntValidator(1, 1000000000, self))
-        self.leNumWorkers.setValidator(QIntValidator(1, 1000000000, self))
+        self.leNumWorkers.setValidator(QIntValidator(0, 1000000000, self))
         self.leSlidingWindowBatchSize.setValidator(QIntValidator(1, 1000000000, self))
 
     def _fill_ui_fields(self):
@@ -163,7 +163,7 @@ class QuUNetMapperSettingsDialog(QDialog):
 
     @pyqtSlot('QString', name="_on_num_workers_text_changed")
     def _on_num_workers_text_changed(self, str_value):
-        """Numnber of workers.
+        """Number of workers.
 
         For now, we set the same number of workers for
         training, validation, testing, and prediction.
@@ -172,8 +172,8 @@ class QuUNetMapperSettingsDialog(QDialog):
         if str_value == '':
             return
         value = int(str_value)
-        if value < 1:
-            value = 1
+        if value < 0:
+            value = 0
             self.leNumWorkers.setText(str(value))
         new_num_workers = (
             value,
