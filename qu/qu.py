@@ -10,12 +10,17 @@
 #   *******************************************************************************/
 #
 
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QGuiApplication
 import napari
 
 from qu.ui.qu_main_widget import QuMainWidget
 
 
 def qu_launcher():
+
+    # Disable HiDPI scaling since it breaks OpenGL-based rendering
+    QGuiApplication.setAttribute(Qt.AA_DisableHighDpiScaling)
 
     with napari.gui_qt():
 
