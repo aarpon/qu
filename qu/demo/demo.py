@@ -40,7 +40,7 @@ def get_demo_segmentation_dataset(three_classes: bool = True):
 
     if three_classes:
         dataset_name = "demo_segmentation_3_classes"
-        archive_file_size = 69796394
+        archive_file_size = 69830773
     else:
         dataset_name = "demo_segmentation_2_classes"
         archive_file_size = 69416154
