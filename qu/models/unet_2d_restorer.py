@@ -24,6 +24,7 @@ import numpy as np
 import torch
 from monai.data import DataLoader, CacheDataset, Dataset
 from monai.inferers import sliding_window_inference
+from monai.networks.nets import BasicUNet
 from monai.transforms import (
     AddChanneld, Compose, LoadImaged, ToTensord, ToNumpy, ScaleIntensity, LoadImage, AddChannel, ToTensor,
     ScaleIntensityd, RandSpatialCropSamplesd, ScaleIntensityRanged, ScaleIntensityRange
@@ -1006,14 +1007,25 @@ class UNet2DRestorer(AbstractBaseLearner):
         if self._device != "cpu":
             torch.cuda.empty_cache()
 
-        # Classic U-Net from Ronneberger et al. (with slightly different parameters)
-        self._model = ClassicUNet2D(
+        # # Classic U-Net from Ronneberger et al. (with slightly different parameters)
+        # self._model = ClassicUNet2D(
+        #     in_channels=self._in_channels,
+        #     n_classes=self._out_channels,
+        #     depth=5,
+        #     wf=4,
+        #     padding=True,
+        #     batch_norm=False
+        # ).to(self._device)
+
+        self._model = BasicUNet(
+            dimensions=2,
             in_channels=self._in_channels,
-            n_classes=self._out_channels,
-            depth=5,
-            wf=4,
-            padding=True,
-            batch_norm=False
+            out_channels=self._out_channels,
+            features=(32, 32, 64, 128, 256, 32),
+            act=('LeakyReLU', {'negative_slope': 0.1, 'inplace': True}),
+            norm=('instance', {'affine': True}),
+            dropout=0.0,
+            upsample='deconv'
         ).to(self._device)
 
         # # Attention U-Net
