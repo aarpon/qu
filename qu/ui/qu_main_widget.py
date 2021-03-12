@@ -635,6 +635,9 @@ class QuMainWidget(QWidget):
             self._learner = UNet2DRestorer(
                 in_channels=self._data_manager.num_input_channels,
                 out_channels=self._data_manager.num_output_channels,
+                norm_min=self._learner_settings.norm_min,
+                norm_max=self._learner_settings.norm_max,
+                num_samples=self._learner_settings.num_samples,
                 roi_size=self._learner_settings.roi_size,
                 num_epochs=self._learner_settings.num_epochs,
                 batch_sizes=self._learner_settings.batch_sizes,

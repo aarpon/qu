@@ -26,7 +26,7 @@ from monai.data import DataLoader, CacheDataset, Dataset
 from monai.inferers import sliding_window_inference
 from monai.transforms import (
     AddChanneld, Compose, LoadImaged, ToTensord, ToNumpy, ScaleIntensity, LoadImage, AddChannel, ToTensor,
-    ScaleIntensityd, RandSpatialCropSamplesd
+    ScaleIntensityd, RandSpatialCropSamplesd, ScaleIntensityRanged, ScaleIntensityRange
 )
 from monai.utils import set_determinism
 from natsort import natsorted
@@ -49,6 +49,9 @@ class UNet2DRestorer(AbstractBaseLearner):
             in_channels: int = 1,
             out_channels: int = 1,
             roi_size: Tuple[int, int] = (384, 384),
+            norm_min: int = 0,
+            norm_max: int = 65535,
+            num_samples: int = 1,
             num_epochs: int = 400,
             batch_sizes: Tuple[int, int, int, int] = (8, 1, 1, 1),
             num_workers: Tuple[int, int, int, int] = (4, 4, 1, 1),
@@ -71,6 +74,15 @@ class UNet2DRestorer(AbstractBaseLearner):
 
         @param roi_size: Tuple[int, int], optional: default = (384, 384)
             Crop area (and input size of the U-Net network) used for training and validation/prediction.
+
+        @param norm_min: int, optional: default = 0
+            Intensity minimum for global dataset normalization.
+
+        @param norm_max: int, optional: default = 65535
+            Intensity maximum for global dataset normalization.
+
+        @param num_samples: int, optional: default = 1
+            Number of samples per image used for training.
 
         @param num_epochs: int, optional: default = 400
             Number of epochs for training.
@@ -117,7 +129,10 @@ class UNet2DRestorer(AbstractBaseLearner):
         self._in_channels = in_channels
         self._out_channels = out_channels
 
-        # Define hyper parameters
+        # Define (hyper) parameters
+        self._norm_min = norm_min
+        self._norm_max = norm_max
+        self._num_samples = num_samples
         self._roi_size = roi_size
         self._training_batch_size = batch_sizes[0]
         self._validation_batch_size = batch_sizes[1]
@@ -667,30 +682,30 @@ class UNet2DRestorer(AbstractBaseLearner):
                         "label"
                     ]
                 ),
-                # ScaleIntensityRanged(
-                #     keys=[
-                #         "image",
-                #         "label"
-                #     ],
-                #     a_min=0,
-                #     a_max=65535,
-                #     b_min=0.0,
-                #     b_max=1.0,
-                #     clip=False
-                # ),
-                ScaleIntensityd(
+                ScaleIntensityRanged(
                     keys=[
                         "image",
                         "label"
-                    ]
+                    ],
+                    a_min=self._norm_min,
+                    a_max=self._norm_max,
+                    b_min=0.0,
+                    b_max=1.0,
+                    clip=False
                 ),
+                # ScaleIntensityd(
+                #     keys=[
+                #         "image",
+                #         "label"
+                #     ]
+                # ),
                 RandSpatialCropSamplesd(
                     keys=[
                         "image",
                         "label"
                     ],
                     roi_size=self._roi_size,
-                    num_samples=16,
+                    num_samples=self._num_samples,
                     random_center=True,
                     random_size=False
                 ),
@@ -718,23 +733,23 @@ class UNet2DRestorer(AbstractBaseLearner):
                         "label"
                     ]
                 ),
-                # ScaleIntensityRanged(
-                #     keys=[
-                #         "image",
-                #         "label"
-                #     ],
-                #     a_min=0,
-                #     a_max=65535,
-                #     b_min=0.0,
-                #     b_max=1.0,
-                #     clip=False
-                # ),
-                ScaleIntensityd(
+                ScaleIntensityRanged(
                     keys=[
                         "image",
                         "label"
-                    ]
+                    ],
+                    a_min=self._norm_min,
+                    a_max=self._norm_max,
+                    b_min=0.0,
+                    b_max=1.0,
+                    clip=False
                 ),
+                # ScaleIntensityd(
+                #     keys=[
+                #         "image",
+                #         "label"
+                #     ]
+                # ),
                 ToTensord(
                     keys=[
                         "image",
@@ -759,23 +774,23 @@ class UNet2DRestorer(AbstractBaseLearner):
                         "label"
                     ]
                 ),
-                # ScaleIntensityRanged(
-                #     keys=[
-                #         "image",
-                #         "label"
-                #     ],
-                #     a_min=0,
-                #     a_max=65535,
-                #     b_min=0.0,
-                #     b_max=1.0,
-                #     clip=False
-                # ),
-                ScaleIntensityd(
+                ScaleIntensityRanged(
                     keys=[
                         "image",
                         "label"
-                    ]
+                    ],
+                    a_min=self._norm_min,
+                    a_max=self._norm_max,
+                    b_min=0.0,
+                    b_max=1.0,
+                    clip=False
                 ),
+                # ScaleIntensityd(
+                #     keys=[
+                #         "image",
+                #         "label"
+                #     ]
+                # ),
                 ToTensord(
                     keys=[
                         "image",
@@ -889,8 +904,14 @@ class UNet2DRestorer(AbstractBaseLearner):
         self._prediction_image_transforms = Compose(
             [
                 LoadImage(image_only=True),
-                # ScaleIntensityRange(0, 65535, 0.0, 1.0, clip=False),
-                ScaleIntensity(),
+                ScaleIntensityRange(
+                    self._norm_min,
+                    self._norm_max,
+                    0.0,
+                    1.0,
+                    clip=False
+                ),
+                # ScaleIntensity(),
                 AddChannel(),
                 ToTensor()
             ]
@@ -899,7 +920,10 @@ class UNet2DRestorer(AbstractBaseLearner):
         self._prediction_post_transforms = Compose(
             [
                 ToNumpy(),
-                ScaleIntensity(0, 65535)
+                ScaleIntensity(
+                    self._norm_min,
+                    self._norm_max
+                )
             ]
         )
 

@@ -51,6 +51,9 @@ class QuUNetMapperSettingsDialog(QDialog):
 
     def _set_validators(self):
         """Set validators on edit fields."""
+        self.leGlobalIntMin.setValidator(QIntValidator(0, 1000000000, self))
+        self.leGlobalIntMax.setValidator(QIntValidator(0, 1000000000, self))
+        self.leSamplesPerImage.setValidator(QIntValidator(1, 1000000000, self))
         self.leNumEpochs.setValidator(QIntValidator(1, 1000000000, self))
         self.leValidationStep.setValidator(QIntValidator(1, 1000000000, self))
         self.leTrainingBatchSize.setValidator(QIntValidator(1, 1000000000, self))
@@ -61,6 +64,9 @@ class QuUNetMapperSettingsDialog(QDialog):
 
     def _fill_ui_fields(self):
         """Fill the UI elements with the values in the settings."""
+        self.leGlobalIntMin.setText(str(self._settings.norm_min))
+        self.leGlobalIntMax.setText(str(self._settings.norm_max))
+        self.leSamplesPerImage.setText(str(self._settings.num_samples))
         self.leNumEpochs.setText(str(self._settings.num_epochs))
         self.leValidationStep.setText(str(self._settings.validation_step))
         self.leTrainingBatchSize.setText(str(self._settings.batch_sizes[0]))
@@ -71,6 +77,9 @@ class QuUNetMapperSettingsDialog(QDialog):
 
     def _set_connections(self):
         """Plug signals and slots"""
+        self.leGlobalIntMin.textChanged.connect(self._on_global_int_min_text_changed)
+        self.leGlobalIntMax.textChanged.connect(self._on_global_int_max_text_changed)
+        self.leSamplesPerImage.textChanged.connect(self._on_num_samples_text_changed)
         self.leNumEpochs.textChanged.connect(self._on_num_epochs_text_changed)
         self.leValidationStep.textChanged.connect(self._on_validation_step_text_changed)
         self.leTrainingBatchSize.textChanged.connect(self._on_training_batch_size_text_changed)
@@ -86,6 +95,42 @@ class QuUNetMapperSettingsDialog(QDialog):
         if QDialog.Accepted == dialog.exec_():
             return dialog._settings
         return None
+
+    @pyqtSlot('QString', name="_on_global_int_min_text_changed")
+    def _on_global_int_min_text_changed(self, str_value):
+        """Global intensity minimum for normalisation."""
+        # The IntValidator allows empty strings.
+        if str_value == '':
+            return
+        value = int(str_value)
+        if value < 0:
+            value = 0
+            self.leGlobalIntMin.setText(str(value))
+        self._settings.norm_min = value
+
+    @pyqtSlot('QString', name="_on_global_int_max_text_changed")
+    def _on_global_int_max_text_changed(self, str_value):
+        """Global intensity maximum for normalisation."""
+        # The IntValidator allows empty strings.
+        if str_value == '':
+            return
+        value = int(str_value)
+        if value < 0:
+            value = 0
+            self.leGlobalIntMax.setText(str(value))
+        self._settings.norm_max = value
+
+    @pyqtSlot('QString', name="_on_num_samples_text_changed")
+    def _on_num_samples_text_changed(self, str_value):
+        """Number of samples per image."""
+        # The IntValidator allows empty strings.
+        if str_value == '':
+            return
+        value = int(str_value)
+        if value < 1:
+            value = 1
+            self.leSamplesPerImage.setText(str(value))
+        self._settings.num_samples = value
 
     @pyqtSlot('QString', name="_on_num_epochs_text_changed")
     def _on_num_epochs_text_changed(self, str_value):

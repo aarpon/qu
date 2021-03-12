@@ -19,6 +19,15 @@ from typing import Tuple
 class UNet2DRestorerSettings:
     """Settings for the UNet Restorer."""
 
+    # Global intensity minimum for normalization
+    norm_min: int = 0
+
+    # Global intensity maximum for normalization
+    norm_max: int = 65535
+
+    # Number of samples per images
+    num_samples: int = 1
+
     # Number of epochs
     num_epochs: int = 10
 
@@ -45,6 +54,9 @@ class UNet2DRestorerSettings:
     def to_dict(self):
         """Return settings as a dictionary."""
         return {
+            "norm_min": self.norm_min,
+            "norm_max": self.norm_max,
+            "num_samples": self.num_samples,
             "num_epochs": self.num_epochs,
             "validation_step": self.validation_step,
             "batch_sizes": self.batch_sizes,
