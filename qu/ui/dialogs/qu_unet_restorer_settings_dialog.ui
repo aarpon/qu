@@ -172,6 +172,7 @@
  <tabstops>
   <tabstop>leGlobalIntMin</tabstop>
   <tabstop>leGlobalIntMax</tabstop>
+  <tabstop>leSamplesPerImage</tabstop>
   <tabstop>leNumEpochs</tabstop>
   <tabstop>leValidationStep</tabstop>
   <tabstop>lineEditROIHeight</tabstop>
