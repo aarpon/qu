@@ -36,7 +36,7 @@ Start Qu by changing to the repository root and typing:
 python main.py
 ```
 
-From the `Qu > Demos` menu, choose `Demo segmentation dataset`. 
+From the `Qu > Demos` menu, choose `Segmentation dataset: 2|3 classes` or `Restoration dataset`. 
 
 ## User manual
 
