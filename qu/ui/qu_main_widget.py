@@ -14,9 +14,9 @@ from pathlib import Path
 
 import torch
 from PyQt5 import uic, QtGui
-from PyQt5.QtCore import pyqtSlot, QThreadPool, QProcess, QUrl
+from PyQt5.QtCore import pyqtSlot, QThreadPool, QProcess, QUrl, Qt
 from PyQt5.QtGui import QIcon, QKeySequence, QDesktopServices
-from PyQt5.QtWidgets import QWidget, QFileDialog, QAction, QMessageBox
+from PyQt5.QtWidgets import QWidget, QFileDialog, QAction, QMessageBox, QInputDialog
 from torch import __version__ as __torch_version__
 from monai import __version__ as __monai_version__
 import sys
@@ -26,6 +26,7 @@ from qu.demo import get_demo_segmentation_dataset, get_demo_restoration_dataset
 from qu.models import UNet2DSegmenter, UNet2DRestorer, UNet2DRestorerSettings
 from qu.models import UNet2DSegmenterSettings
 from qu.processing import SegmentationDiagnostics
+from qu.processing.data.images import find_global_intensity_range
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataManager, ExperimentType
@@ -124,9 +125,20 @@ class QuMainWidget(QWidget):
         # Add processing submenu
         processing_menu = qu_menu.addMenu("Processing")
 
-        # Add placeholder for now
+        # Add images submenu
+        images_menu = processing_menu.addMenu("Images")
+
+        # Save mask
+        find_global_intensity_range_action = QAction("Find global intensity range", self)
+        find_global_intensity_range_action.triggered.connect(self._on_find_global_intensity_range_action)
+        images_menu.addAction(find_global_intensity_range_action)
+
+        # Add masks submenu
+        masks_menu = processing_menu.addMenu("Masks")
+
+        # Add placeholders for now
         will_follow_action = QAction("Will follow", self)
-        processing_menu.addAction(will_follow_action)
+        masks_menu.addAction(will_follow_action)
 
         # Add curation submenu
         curation_menu = qu_menu.addMenu("Curation")
@@ -708,6 +720,52 @@ class QuMainWidget(QWidget):
         segmManager.signals.finished.connect(self._on_segm_diagnostics_completed)
         segmManager.signals.returned.connect(self._on_segm_diagnostics_returned)
         QThreadPool.globalInstance().start(segmManager)
+
+    @pyqtSlot(name="_on_find_global_intensity_range_action")
+    def _on_find_global_intensity_range_action(self):
+
+        # Check if we have images and (optionally) targets
+        if self._data_manager.num_images == 0:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Information)
+            msg.setText("Please load a dataset first.")
+            msg.setInformativeText("No images found.")
+            msg.setWindowTitle("Qu:: Error")
+            msg.setStandardButtons(QMessageBox.Ok)
+            if msg.exec_() == QMessageBox.Ok:
+                return
+
+        # Ask for the percentile
+        perc, ok = QInputDialog.getInt(
+            self,
+            "Input requested",
+            "Intensity percentile (0 - 49):",
+            1,
+            0,
+            49,
+            1,
+            Qt.Popup
+        )
+
+        if not ok:
+            return
+
+        # Get the intensitiy range
+        mn, mx = find_global_intensity_range(
+            Path(self._data_manager.root_data_path) / "images",
+            Path(self._data_manager.root_data_path) / "targets",
+            perc
+        )
+
+        # Inform
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText("Global intensity range found:")
+        msg.setInformativeText(f"\nmin = {mn}\nmax = {mx}")
+        msg.setWindowTitle("Qu:: Info")
+        msg.setStandardButtons(QMessageBox.Ok)
+        if msg.exec_() == QMessageBox.Ok:
+            return
 
     @pyqtSlot(name="_on_qu_save_mask_action")
     def _on_qu_save_mask_action(self):
