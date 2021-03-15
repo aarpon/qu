@@ -14,10 +14,30 @@ import os
 from dataclasses import dataclass
 from typing import Tuple
 
+from qu.models.core import RestorationArchitectures, RestorationLosses, Optimizers
+
 
 @dataclass
 class UNet2DRestorerSettings:
     """Settings for the UNet Restorer."""
+
+    # Architecture
+    architecture: RestorationArchitectures = RestorationArchitectures.BasicUNet2D
+
+    # Loss function
+    loss: RestorationLosses = RestorationLosses.MAELoss
+
+    # Optimizer
+    optimizer: Optimizers = Optimizers.Adam
+
+    # Learning rate
+    learning_rate: float = 0.001
+
+    # Weight decay (Adam)
+    weight_decay: float = 0.0001
+
+    # Momentum (SGD)
+    momentum: float = 0.9
 
     # Global intensity minimum for normalization
     norm_min: int = 0
@@ -54,6 +74,12 @@ class UNet2DRestorerSettings:
     def to_dict(self):
         """Return settings as a dictionary."""
         return {
+            "architecture": self.architecture,
+            "loss": self.loss,
+            "optimizer": self.optimizer,
+            "learning_rate": self.learning_rate,
+            "weight_decay": self.weight_decay,
+            "momentum": self.momentum,
             "norm_min": self.norm_min,
             "norm_max": self.norm_max,
             "num_samples": self.num_samples,

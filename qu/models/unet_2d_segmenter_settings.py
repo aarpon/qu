@@ -14,7 +14,7 @@ import os
 from dataclasses import dataclass
 from typing import Tuple
 
-from qu.models.core import Architectures, Losses, Optimizers
+from qu.models.core import SegmentationArchitectures, SegmentationLosses, Optimizers
 
 
 @dataclass
@@ -22,10 +22,10 @@ class UNet2DSegmenterSettings:
     """Settings for the UNet segmenter."""
 
     # Architecture
-    architecture: Architectures = Architectures.ResidualUNet2D
+    architecture: SegmentationArchitectures = SegmentationArchitectures.ResidualUNet2D
 
     # Loss function
-    loss: Losses = Losses.GeneralizedDiceLoss
+    loss: SegmentationLosses = SegmentationLosses.GeneralizedDiceLoss
 
     # Optimizer
     optimizer: Optimizers = Optimizers.Adam

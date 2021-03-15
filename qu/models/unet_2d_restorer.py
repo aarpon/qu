@@ -33,11 +33,11 @@ from monai.utils import set_determinism
 from natsort import natsorted
 from tifffile import TiffWriter
 from torch.nn import L1Loss
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch.utils.tensorboard import SummaryWriter
 
 from qu.models.abstract_base_learner import AbstractBaseLearner
-from qu.models.core import ClassicUNet2D
+from qu.models.core import RestorationArchitectures, RestorationLosses, Optimizers
 from qu.transform import one_hot_stack_to_label_image
 from qu.transform.extern.monai import Identity
 
@@ -47,12 +47,18 @@ class UNet2DRestorer(AbstractBaseLearner):
 
     def __init__(
             self,
+            architecture: RestorationArchitectures = RestorationArchitectures.BasicUNet2D,
+            loss: RestorationLosses = RestorationLosses.MAELoss,
+            optimizer: Optimizers = Optimizers.Adam,
             in_channels: int = 1,
             out_channels: int = 1,
             roi_size: Tuple[int, int] = (384, 384),
             norm_min: int = 0,
             norm_max: int = 65535,
             num_samples: int = 1,
+            learning_rate: float = 0.001,
+            weight_decay: float = 0.0001,
+            momentum: float = 0.9,
             num_epochs: int = 400,
             batch_sizes: Tuple[int, int, int, int] = (8, 1, 1, 1),
             num_workers: Tuple[int, int, int, int] = (4, 4, 1, 1),
@@ -66,6 +72,15 @@ class UNet2DRestorer(AbstractBaseLearner):
             stderr: TextIOWrapper = sys.stderr
     ):
         """Constructor.
+
+        @param architecture: RestorationArchitectures
+            Core network architecture: currently only RestorationArchitectures.BasicUNet2D is supported.
+
+        @param loss: RestorationLosses
+            Loss function: currently only RestorationLosses.MAELoss is supported.
+
+        @param optimizer: Optimizers
+            Optimizer: one of (Optimizers.Adam, Optimizers.SGD)
 
         @param in_channels: int, optional: default = 1
             Number of channels in the input (e.g. 1 for gray-value images).
@@ -84,6 +99,17 @@ class UNet2DRestorer(AbstractBaseLearner):
 
         @param num_samples: int, optional: default = 1
             Number of samples per image used for training.
+
+        @param learning_rate: float, optional: default = 1e-3
+            Initial learning rate for the optimizer.
+
+        @param weight_decay: float, optional: default = 1e-4
+            Weight decay of the learning rate for the optimizer.
+            Used by the Adam optimizer.
+
+        @param momentum: float, optional: default = 0.9
+            Momentum of the accelerated gradient for the optimizer.
+            Used by the SGD optimizer.
 
         @param num_epochs: int, optional: default = 400
             Number of epochs for training.
@@ -125,6 +151,14 @@ class UNet2DRestorer(AbstractBaseLearner):
 
         # Device (initialize as "cpu")
         self._device = "cpu"
+
+        # Architecture, loss function and optimizer
+        self._option_architecture = architecture
+        self._option_loss = loss
+        self._option_optimizer = optimizer
+        self._learning_rate = learning_rate
+        self._weight_decay = weight_decay
+        self._momentum = momentum
 
         # Input and output channels
         self._in_channels = in_channels
@@ -1017,16 +1051,21 @@ class UNet2DRestorer(AbstractBaseLearner):
         #     batch_norm=False
         # ).to(self._device)
 
-        self._model = BasicUNet(
-            dimensions=2,
-            in_channels=self._in_channels,
-            out_channels=self._out_channels,
-            features=(32, 32, 64, 128, 256, 32),
-            act=('LeakyReLU', {'negative_slope': 0.1, 'inplace': True}),
-            norm=('instance', {'affine': True}),
-            dropout=0.0,
-            upsample='deconv'
-        ).to(self._device)
+        # Instantiate the requested model
+        if self._option_architecture == RestorationArchitectures.BasicUNet2D:
+            self._model = BasicUNet(
+                dimensions=2,
+                in_channels=self._in_channels,
+                out_channels=self._out_channels,
+                features=(32, 32, 64, 128, 256, 32),
+                act=('LeakyReLU', {'negative_slope': 0.1, 'inplace': True}),
+                norm=('instance', {'affine': True}),
+                dropout=0.0,
+                upsample='deconv'
+            ).to(self._device)
+
+        else:
+            raise ValueError(f"Unexpected architecture {self._option_architecture}! Aborting.")
 
         # # Attention U-Net
         # self._model = AttentionUNet2D(
@@ -1038,33 +1077,33 @@ class UNet2DRestorer(AbstractBaseLearner):
     def _define_training_loss(self) -> None:
         """Define the loss function."""
 
-        # Use the MAE loss
-        self._training_loss_function = L1Loss()
+        if self._option_loss == RestorationLosses.MAELoss:
+            # Use the MAE loss
+            self._training_loss_function = L1Loss()
+        else:
+            raise ValueError(f"Unknown loss option {self._option_loss}! Aborting.")
 
-    def _define_optimizer(
-            self,
-            learning_rate: float = 1e-3,
-            weight_decay: float = 1e-4
-    ) -> None:
-        """Define the optimizer.
-
-        @param learning_rate: float, optional, default = 1e-3
-            Initial learning rate for the optimizer.
-
-        @param weight_decay: float, optional, default = 1e-4
-            Weight decay of the learning rate for the optimizer.
-
-        """
+    def _define_optimizer(self) -> None:
+        """Define the optimizer."""
 
         if self._model is None:
             return
 
-        self._optimizer = Adam(
-            self._model.parameters(),
-            learning_rate,
-            weight_decay=weight_decay,
-            amsgrad=True
-        )
+        if self._option_optimizer == Optimizers.Adam:
+            self._optimizer = Adam(
+                self._model.parameters(),
+                self._learning_rate,
+                weight_decay=self._weight_decay,
+                amsgrad=True
+            )
+        elif self._option_optimizer == Optimizers.SGD:
+            self._optimizer = SGD(
+                self._model.parameters(),
+                lr=self._learning_rate,
+                momentum=self._momentum
+            )
+        else:
+            raise ValueError(f"Unknown optimizer option {self._option_optimizer}! Aborting.")
 
     def _prepare_experiment_and_model_names(self) -> Tuple[str, str]:
         """Prepare the experiment and model names.

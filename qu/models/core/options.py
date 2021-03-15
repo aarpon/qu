@@ -13,12 +13,20 @@
 from enum import IntEnum
 
 
-class Architectures(IntEnum):
+class RestorationArchitectures(IntEnum):
+    BasicUNet2D = 0
+
+
+class SegmentationArchitectures(IntEnum):
     ResidualUNet2D = 0,
     AttentionUNet2D = 1
 
 
-class Losses(IntEnum):
+class RestorationLosses(IntEnum):
+    MAELoss = 0
+
+
+class SegmentationLosses(IntEnum):
     GeneralizedDiceLoss = 0
 
 

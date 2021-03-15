@@ -19,7 +19,7 @@ from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtGui import QIntValidator, QDoubleValidator
 from PyQt5.QtWidgets import QDialog
 
-from qu.models.core import Architectures, Losses, Optimizers
+from qu.models.core import SegmentationArchitectures, SegmentationLosses, Optimizers
 from qu.ui import _ui_folder_path
 
 
@@ -111,9 +111,9 @@ class QuUNetSegmenterSettingsDialog(QDialog):
     def _on_architecture_value_changed(self, value):
         """Architecure."""
         if value == 0:
-            self._settings.architecture = Architectures.ResidualUNet2D
+            self._settings.architecture = SegmentationArchitectures.ResidualUNet2D
         elif value == 1:
-            self._settings.architecture = Architectures.AttentionUNet2D
+            self._settings.architecture = SegmentationArchitectures.AttentionUNet2D
         else:
             raise ValueError(f"Unexpected option {value} for architecture.")
 
@@ -121,7 +121,7 @@ class QuUNetSegmenterSettingsDialog(QDialog):
     def _on_loss_value_changed(self, value):
         """Loss function."""
         if value == 0:
-            self._settings.loss = Losses.GeneralizedDiceLoss
+            self._settings.loss = SegmentationLosses.GeneralizedDiceLoss
         else:
             raise ValueError(f"Unexpected option {value} for loss.")
 

@@ -10,6 +10,6 @@
 #   *******************************************************************************/
 #
 
-from .options import Architectures, Losses, Optimizers
+from .options import RestorationArchitectures, SegmentationArchitectures, RestorationLosses, SegmentationLosses, Optimizers
 from .classic_unet_2d import ClassicUNet2D
 from .attention_unet_2d import AttentionUNet2D

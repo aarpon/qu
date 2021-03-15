@@ -36,7 +36,7 @@ from torch.optim import Adam, SGD
 from torch.utils.tensorboard import SummaryWriter
 
 from qu.data.manager import MaskType
-from qu.models.core import AttentionUNet2D, Architectures, Losses, Optimizers
+from qu.models.core import AttentionUNet2D, SegmentationArchitectures, SegmentationLosses, Optimizers
 from qu.transform.extern.monai import ToOneHot
 from qu.transform.extern.monai import Identity, LoadMask
 from qu.models.abstract_base_learner import AbstractBaseLearner
@@ -48,8 +48,8 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
     def __init__(
             self,
-            architecture: Architectures = Architectures.ResidualUNet2D,
-            loss: Losses = Losses.GeneralizedDiceLoss,
+            architecture: SegmentationArchitectures = SegmentationArchitectures.ResidualUNet2D,
+            loss: SegmentationLosses = SegmentationLosses.GeneralizedDiceLoss,
             optimizer: Optimizers = Optimizers.Adam,
             mask_type: MaskType = MaskType.TIFF_LABELS,
             in_channels: int = 1,
@@ -80,11 +80,11 @@ class UNet2DSegmenter(AbstractBaseLearner):
 
             @see qu.data.model.MaskType
 
-        @param architecture: Architectures
-            Core network architecture: one of (Architectures.ResidualUNet2D, Architectures.AttentionUNet2D)
+        @param architecture: SegmentationArchitectures
+            Core network architecture: one of (SegmentationArchitectures.ResidualUNet2D, SegmentationArchitectures.AttentionUNet2D)
 
-        @param loss: Losses
-            Loss function: currently only Losses.GeneralizedDiceLoss is supported
+        @param loss: SegmentationLosses
+            Loss function: currently only SegmentationLosses.GeneralizedDiceLoss is supported
 
         @param optimizer: Optimizers
             Optimizer: one of (Optimizers.Adam, Optimizers.SGD)
@@ -999,7 +999,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
             torch.cuda.empty_cache()
 
         # Instantiate the requested model
-        if self._option_architecture == Architectures.ResidualUNet2D:
+        if self._option_architecture == SegmentationArchitectures.ResidualUNet2D:
             # Monai's UNet
             self._model = UNet(
                 dimensions=2,
@@ -1010,7 +1010,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
                 num_res_units=2
             ).to(self._device)
 
-        elif self._option_architecture == Architectures.AttentionUNet2D:
+        elif self._option_architecture == SegmentationArchitectures.AttentionUNet2D:
 
             # Attention U-Net
             self._model = AttentionUNet2D(
@@ -1025,7 +1025,7 @@ class UNet2DSegmenter(AbstractBaseLearner):
     def _define_training_loss(self) -> None:
         """Define the loss function."""
 
-        if self._option_loss == Losses.GeneralizedDiceLoss:
+        if self._option_loss == SegmentationLosses.GeneralizedDiceLoss:
             self._training_loss_function = GeneralizedDiceLoss(
                 include_background=True,
                 to_onehot_y=False,
