@@ -2,11 +2,11 @@
 
 Qu is an attempt to make the full deep learning workflow more interactive by providing a user interface that abstracts all steps from ground truth generation and curation to training and prediction. 
 
-Qu is implemented as a widget for the great [napari](https://napari.org/) multi-dimensional image viewer for python.
+Qu is implemented as a widget for the great [napari](https://napari.org/) multi-dimensional image viewer for python and makes heavy use of the [MONAI framework](https://monai.io).
 
 ![Qu](images/qu.png)
 
-Qu is released under the terms of the Apache License version 2.0 (see LICENSE.txt). All libraries used by Qu have their own licenses.
+Qu is released under the terms of the Apache License version 2.0 (see [LICENSE.txt](./LICENSE.txt)). All libraries used by Qu have their own licenses.
 
 ## Installation
 
@@ -40,5 +40,5 @@ From the `Qu > Demos` menu, choose `Segmentation dataset: 2|3 classes` or `Resto
 
 ## User manual
 
-Detailed instructions will follow soon.
+Detailed instructions [will follow soon](https://github.com/aarpon/qu/wiki/Qu).
 
