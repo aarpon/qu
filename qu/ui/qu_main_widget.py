@@ -217,7 +217,7 @@ class QuMainWidget(QWidget):
         self.pBSelectDataRootFolder.clicked.connect(self._on_select_data_root_folder)
         self.hsImageSelector.valueChanged.connect(self._on_selector_value_changed)
 
-        # Architectures picker
+        # Architecture picker
         self.cbArchitecturePicker.currentIndexChanged.connect(self._on_architecture_changed)
 
         # Training
@@ -633,12 +633,18 @@ class QuMainWidget(QWidget):
             )
         elif arch == 1:
             self._learner = UNet2DRestorer(
+                architecture=self._learner_settings.architecture,
+                loss=self._learner_settings.loss,
+                optimizer=self._learner_settings.optimizer,
                 in_channels=self._data_manager.num_input_channels,
                 out_channels=self._data_manager.num_output_channels,
                 norm_min=self._learner_settings.norm_min,
                 norm_max=self._learner_settings.norm_max,
                 num_samples=self._learner_settings.num_samples,
                 roi_size=self._learner_settings.roi_size,
+                learning_rate=self._learner_settings.learning_rate,
+                weight_decay=self._learner_settings.weight_decay,
+                momentum=self._learner_settings.momentum,
                 num_epochs=self._learner_settings.num_epochs,
                 batch_sizes=self._learner_settings.batch_sizes,
                 num_workers=self._learner_settings.num_workers,

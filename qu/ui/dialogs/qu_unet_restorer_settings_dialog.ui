@@ -6,22 +6,60 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>561</width>
-    <height>473</height>
+    <width>384</width>
+    <height>522</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>U-Net 2D Mapper</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
+   <item row="11" column="1">
+    <widget class="QLineEdit" name="leFilters">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="readOnly">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="0">
+    <widget class="QLabel" name="labelNumSamplesPerImage">
+     <property name="text">
+      <string>Samples per image</string>
+     </property>
+    </widget>
+   </item>
    <item row="9" column="1">
+    <widget class="QLineEdit" name="leSamplesPerImage">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="labelLearningRate">
+     <property name="text">
+      <string>Learning rate</string>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="0">
+    <widget class="QLabel" name="labelFilters">
+     <property name="text">
+      <string>Filters (fixed for now)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="17" column="1">
     <widget class="QLineEdit" name="leTrainingBatchSize">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="12" column="0" colspan="2">
+   <item row="20" column="0" colspan="2">
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
@@ -31,56 +69,56 @@
      </property>
     </widget>
    </item>
-   <item row="3" column="0">
+   <item row="10" column="0">
     <widget class="QLabel" name="labelNumEpochs">
      <property name="text">
       <string>Number of epochs</string>
      </property>
     </widget>
    </item>
-   <item row="8" column="1">
+   <item row="16" column="1">
     <widget class="QLineEdit" name="lineEditROIWidth">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="7" column="1">
+   <item row="15" column="1">
     <widget class="QLineEdit" name="lineEditROIHeight">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="4" column="0">
+   <item row="12" column="0">
     <widget class="QLabel" name="labelValidationStep">
      <property name="text">
       <string>Validation step</string>
      </property>
     </widget>
    </item>
-   <item row="7" column="0">
+   <item row="15" column="0">
     <widget class="QLabel" name="labelROIHeight">
      <property name="text">
       <string>ROI height</string>
      </property>
     </widget>
    </item>
-   <item row="0" column="1">
+   <item row="6" column="1">
     <widget class="QLineEdit" name="leGlobalIntMin">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="10" column="0">
+   <item row="18" column="0">
     <widget class="QLabel" name="labelSlidingWindowBatchSize">
      <property name="text">
       <string>Sliding window batch size</string>
      </property>
     </widget>
    </item>
-   <item row="3" column="1">
+   <item row="10" column="1">
     <widget class="QLineEdit" name="leNumEpochs">
      <property name="inputMethodHints">
       <set>Qt::ImhDigitsOnly|Qt::ImhPreferNumbers</set>
@@ -90,81 +128,161 @@
      </property>
     </widget>
    </item>
-   <item row="1" column="0">
+   <item row="8" column="0">
     <widget class="QLabel" name="labelGlobalIntMax">
      <property name="text">
       <string>Intensity max for normalization</string>
      </property>
     </widget>
    </item>
-   <item row="1" column="1">
+   <item row="8" column="1">
     <widget class="QLineEdit" name="leGlobalIntMax">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="4" column="1">
+   <item row="12" column="1">
     <widget class="QLineEdit" name="leValidationStep">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="11" column="1">
+   <item row="19" column="1">
     <widget class="QLineEdit" name="leNumWorkers">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="11" column="0">
+   <item row="19" column="0">
     <widget class="QLabel" name="labelNumWorkers">
      <property name="text">
       <string>Number of workers</string>
      </property>
     </widget>
    </item>
-   <item row="10" column="1">
+   <item row="18" column="1">
     <widget class="QLineEdit" name="leSlidingWindowBatchSize">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="0" column="0">
+   <item row="6" column="0">
     <widget class="QLabel" name="labelGlobalIntMin">
      <property name="text">
       <string>Intensity min for normalization</string>
      </property>
     </widget>
    </item>
-   <item row="8" column="0">
+   <item row="16" column="0">
     <widget class="QLabel" name="labelROIWidth">
      <property name="text">
       <string>ROI width</string>
      </property>
     </widget>
    </item>
-   <item row="9" column="0">
+   <item row="17" column="0">
     <widget class="QLabel" name="label">
      <property name="text">
       <string>Training batch size</string>
      </property>
     </widget>
    </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="labelNumSamplesPerImage">
-     <property name="text">
-      <string>Samples per image</string>
+   <item row="2" column="1">
+    <widget class="QComboBox" name="cbOptimizer">
+     <property name="sizeAdjustPolicy">
+      <enum>QComboBox::AdjustToContents</enum>
      </property>
+     <item>
+      <property name="text">
+       <string>Adam</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>SGD</string>
+      </property>
+     </item>
     </widget>
    </item>
-   <item row="2" column="1">
-    <widget class="QLineEdit" name="leSamplesPerImage">
+   <item row="3" column="1">
+    <widget class="QLineEdit" name="leLearningRate">
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="labelOptimizer">
+     <property name="text">
+      <string>Optimizer</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0">
+    <widget class="QLabel" name="labelWeightDecay">
+     <property name="text">
+      <string>Weight decay (Adam)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QLabel" name="labelMomentum">
+     <property name="text">
+      <string>Momentum (SGD)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="1">
+    <widget class="QLineEdit" name="leWeightDecay">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <widget class="QLineEdit" name="leMomentum">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="labelLoss">
+     <property name="text">
+      <string>Loss function</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QComboBox" name="cbLoss">
+     <property name="sizeAdjustPolicy">
+      <enum>QComboBox::AdjustToContents</enum>
+     </property>
+     <item>
+      <property name="text">
+       <string>Mean absolute error (L1)</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="0" column="0">
+    <widget class="QLabel" name="labelArchitecture">
+     <property name="text">
+      <string>TextLabel</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QComboBox" name="cbArchitecture">
+     <item>
+      <property name="text">
+       <string>Basic U-Net</string>
+      </property>
+     </item>
     </widget>
    </item>
   </layout>
