@@ -1071,7 +1071,7 @@ class QuMainWidget(QWidget):
     @pyqtSlot(name="_on_qu_help_action")
     def _on_qu_help_action(self):
         """Qu help action."""
-        print("Help: Implement me!", file=self._out_stream)
+        QDesktopServices.openUrl(QUrl("https://github.com/aarpon/qu/wiki/Qu", QUrl.TolerantMode))
 
     @pyqtSlot(name="_on_training_start")
     def _on_training_start(self):

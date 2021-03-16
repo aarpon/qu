@@ -24,8 +24,8 @@ def qu_launcher():
 
     with napari.gui_qt():
 
-        # Instantiate napari viewer
-        viewer = napari.Viewer()
+        # Instantiate napari viewer with custom title
+        viewer = napari.Viewer(title="Qu for napari")
 
         # Instantiate QuMainWidget
         quMainWidget = QuMainWidget(viewer)
