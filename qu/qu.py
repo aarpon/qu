@@ -22,17 +22,18 @@ def qu_launcher():
     # Disable HiDPI scaling since it breaks OpenGL-based rendering
     QGuiApplication.setAttribute(Qt.AA_DisableHighDpiScaling)
 
-    with napari.gui_qt():
+    # Instantiate napari viewer with custom title
+    viewer = napari.Viewer(title="Qu for napari")
+    print(type(viewer))
+    # Instantiate QuMainWidget
+    quMainWidget = QuMainWidget(viewer)
 
-        # Instantiate napari viewer with custom title
-        viewer = napari.Viewer(title="Qu for napari")
+    # Add to dock
+    viewer.window.add_dock_widget(quMainWidget, name='Qu', area='right')
 
-        # Instantiate QuMainWidget
-        quMainWidget = QuMainWidget(viewer)
+    # If there is enough space, enlarge the main window to fit all
+    # widgets properly
+    viewer.window.resize(1600, 1000)
 
-        # Add to dock
-        viewer.window.add_dock_widget(quMainWidget, name='Qu', area='right')
-
-        # If there is enough space, enlarge the main window to fit all
-        # widgets properly
-        viewer.window.resize(1600, 1000)
+    # Run napari
+    napari.run()

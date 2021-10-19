@@ -14,8 +14,6 @@
 
 
 import os
-import sys
-import time
 from statistics import mean
 
 # object based analysis of results
@@ -24,9 +22,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 from scipy.stats import kstest
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
 
 # batch assessment
+
 
 class SegmentationDiagnostics:
     """creates a segmentation diagnostics that analyses quality
@@ -86,7 +85,6 @@ class SegmentationDiagnostics:
     def evaluate_segmentation(self, save_path=None):
         """wrapper to perform all segmentation evaluation and create
         plots"""
-        old_time = time.time()
 
         for pred_num in range(len(self.pred_infos)):
             # calc image metrics
@@ -140,8 +138,10 @@ class SegmentationDiagnostics:
 
             # plot
             self.plot_metrics(pred_num)
+
+            # Save the figure only if a path was explicitly passed
             if not save_path:
-                save_path = os.path.dirname(self.pred_infos[pred_num]['path'])
+                return "NOT_SAVED"
 
             output_name = self.pred_infos[pred_num]['exp_name'] + ".png"
             full_save_path = os.path.join(save_path, output_name)
@@ -228,8 +228,7 @@ class SegmentationDiagnostics:
             # calc_int_over_union
             ious.insert(n, self._int_over_union(gt_img, pred_img))
             # calc f1 score per image
-            single_conf = confusion_matrix(gt_img.flatten(), pred_img.flatten())
-            image_f1.insert(n, self._calc_f1_score(single_conf))
+            image_f1.insert(n, self._calc_f1_score(gt_img.flatten(), pred_img.flatten()))
         return ious, image_f1
 
     def calc_batch_metrics(self, pred_num=0):
@@ -386,7 +385,17 @@ class SegmentationDiagnostics:
         hat_asl_perm = (float(diffCount) / float(num_samples))
         return hat_asl_perm
 
-    def _calc_f1_score(self, conf_matrix) -> np.array:
+    def _calc_f1_score(self, y_true, y_pred):
+        """Calculates weight-averaged f1 score.
+
+        @param y_true unraveled (1D array) ground truth
+        @param y_true unraveled (1D array) prediction
+        """
+
+        report = classification_report(y_true, y_pred, digits=3, output_dict=True)
+        return report['weighted avg']['f1-score']
+
+    def _calc_f1_score_old(self, conf_matrix) -> np.array:
         """ calculates f1 score using confusion matrix
         :param conf_matrix: confusion matrix calculated with advanced_image_metrics
         :return: float number f1_score

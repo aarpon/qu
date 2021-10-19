@@ -392,7 +392,7 @@ class QuMainWidget(QWidget):
         """Run prediction."""
 
         # Instantiate the manager
-        predictorManager = PredictorManager(
+        predictor_manager = PredictorManager(
             self._learner,
             self._data_manager.prediction_input_path,
             self._data_manager.prediction_target_path,
@@ -400,11 +400,11 @@ class QuMainWidget(QWidget):
         )
 
         # Run the training in a separate Qt thread
-        predictorManager.signals.started.connect(self._on_prediction_start)
-        predictorManager.signals.errored.connect(self._on_prediction_error)
-        predictorManager.signals.finished.connect(self._on_prediction_completed)
-        predictorManager.signals.returned.connect(self._on_prediction_returned)
-        QThreadPool.globalInstance().start(predictorManager)
+        predictor_manager.signals.started.connect(self._on_prediction_start)
+        predictor_manager.signals.errored.connect(self._on_prediction_error)
+        predictor_manager.signals.finished.connect(self._on_prediction_completed)
+        predictor_manager.signals.returned.connect(self._on_prediction_returned)
+        QThreadPool.globalInstance().start(predictor_manager)
 
     @pyqtSlot(name='_on_select_input_for_prediction')
     def _on_select_input_for_prediction(self):
@@ -680,14 +680,14 @@ class QuMainWidget(QWidget):
         )
 
         # Instantiate the manager
-        learnerManager = LearnerManager(self._learner)
+        learner_manager = LearnerManager(self._learner)
 
         # Run the training in a separate Qt thread
-        learnerManager.signals.started.connect(self._on_training_start)
-        learnerManager.signals.errored.connect(self._on_training_error)
-        learnerManager.signals.finished.connect(self._on_training_completed)
-        learnerManager.signals.returned.connect(self._on_training_returned)
-        QThreadPool.globalInstance().start(learnerManager)
+        learner_manager.signals.started.connect(self._on_training_start)
+        learner_manager.signals.errored.connect(self._on_training_error)
+        learner_manager.signals.finished.connect(self._on_training_completed)
+        learner_manager.signals.returned.connect(self._on_training_returned)
+        QThreadPool.globalInstance().start(learner_manager)
 
     @pyqtSlot(name="_on_qu_about_action")
     def _on_qu_about_action(self):
@@ -721,14 +721,14 @@ class QuMainWidget(QWidget):
         self._segm_diagnostics = SegmentationDiagnostics(gt_dir, segm_dir)
 
         # Wrap the SegmentationDiagnostics tool into its Manager
-        segmManager = SegmentationDiagnosticsManager(self._segm_diagnostics)
+        segm_manager = SegmentationDiagnosticsManager(self._segm_diagnostics)
 
         # Run the training in a separate Qt thread
-        segmManager.signals.started.connect(self._on_segm_diagnostics_start)
-        segmManager.signals.errored.connect(self._on_segm_diagnostics_error)
-        segmManager.signals.finished.connect(self._on_segm_diagnostics_completed)
-        segmManager.signals.returned.connect(self._on_segm_diagnostics_returned)
-        QThreadPool.globalInstance().start(segmManager)
+        segm_manager.signals.started.connect(self._on_segm_diagnostics_start)
+        segm_manager.signals.errored.connect(self._on_segm_diagnostics_error)
+        segm_manager.signals.finished.connect(self._on_segm_diagnostics_completed)
+        segm_manager.signals.returned.connect(self._on_segm_diagnostics_returned)
+        QThreadPool.globalInstance().start(segm_manager)
 
     @pyqtSlot(name="_on_find_global_intensity_range_action")
     def _on_find_global_intensity_range_action(self):
@@ -1135,7 +1135,7 @@ class QuMainWidget(QWidget):
     @pyqtSlot(name="_on_segm_diagnostics_start")
     def _on_segm_diagnostics_start(self):
         """Called when segmentation diagnostics is started."""
-        print("Segmentation diagnostics started. This may take a while...", file=self._out_stream)
+        print("Segmentation diagnostics started. When completed, a figure will be displayed. This may take a while...", file=self._out_stream)
 
     @pyqtSlot(name="_on_segm_diagnostics_completed")
     def _on_segm_diagnostics_completed(self):
@@ -1149,11 +1149,6 @@ class QuMainWidget(QWidget):
             value = str(value)
             # Inform
             print(f"Segmentation diagnostics was successful.", file=self._out_stream)
-            print(f"Output report was saved to {value}.", file=self._out_stream)
-
-        else:
-            # Inform
-            print(f"Segmentation diagnostics was not successful.", file=self._out_stream)
 
     @pyqtSlot(object, name="_on_segm_diagnostics_error")
     def _on_segm_diagnostics_error(self, err):
