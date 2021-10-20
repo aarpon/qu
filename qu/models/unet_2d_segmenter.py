@@ -37,8 +37,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from qu.data.manager import MaskType
 from qu.models.core import AttentionUNet2D, SegmentationArchitectures, SegmentationLosses, Optimizers
-from qu.transform.extern.monai import ToOneHot
-from qu.transform.extern.monai import Identity, LoadMask
+from qu.transform.extern.monai import ToOneHot, Identity, LoadMask
 from qu.models.abstract_base_learner import AbstractBaseLearner
 from qu.transform import one_hot_stack_to_label_image
 
