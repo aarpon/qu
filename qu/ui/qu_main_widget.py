@@ -12,11 +12,12 @@
 
 from pathlib import Path
 
+import napari
 import torch
 from PyQt5 import uic, QtGui
 from PyQt5.QtCore import pyqtSlot, QThreadPool, QProcess, QUrl, Qt
 from PyQt5.QtGui import QIcon, QKeySequence, QDesktopServices
-from PyQt5.QtWidgets import QWidget, QFileDialog, QAction, QMessageBox, QInputDialog
+from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QWidget, QFileDialog, QAction, QMessageBox, QInputDialog
 from torch import __version__ as __torch_version__
 from monai import __version__ as __monai_version__
 import sys
@@ -38,11 +39,14 @@ from qu.ui.threads import LearnerManager, PredictorManager, SegmentationDiagnost
 
 class QuMainWidget(QWidget):
 
-    def __init__(self, viewer, *args, **kwargs):
+    def __init__(self, logger, *args, **kwargs):
         """Constructor."""
 
         # Call base constructor
         super().__init__(*args, **kwargs)
+
+        # Get current napari viewer
+        self._viewer = napari.current_viewer()
 
         # Initialize data manager
         self._data_manager = DataManager()
@@ -62,9 +66,6 @@ class QuMainWidget(QWidget):
         # Keep a reference to the segmentation diagnostics tool
         self._segm_diagnostics = None
 
-        # Store a reference to the napari viewer
-        self._viewer = viewer
-
         # Set up UI
         uic.loadUi(_ui_folder_path / "qu_main_widget.ui", self)
 
@@ -81,16 +82,16 @@ class QuMainWidget(QWidget):
         sys.stderr.stream_signal.connect(self._on_print_error_to_console)
 
         # Create the logger
-        self._logger = QuLoggerWidget(viewer)
+        self._logger = logger
 
         # Set up the menu
-        self._add_qu_menu()
+        # self._add_qu_menu()
 
         # Set the connections
         self._set_connections()
 
-        # Dock it
-        viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
+        # # Dock it
+        # viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
 
         # Tensorboard process
         self._tensorboard_process = None

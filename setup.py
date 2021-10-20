@@ -3,5 +3,5 @@
 from setuptools import setup
 
 setup(
-    entry_points={'napari.plugin': 'Qu = qu.qu'},
+    entry_points={'napari.plugin': 'Qu = qu'},
 )

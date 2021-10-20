@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import QTextEdit
 
 class QuLoggerWidget(QTextEdit):
 
-    def __init__(self, viewer, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """Constructor."""
 
         # Call base constructor
