@@ -17,7 +17,7 @@ import torch
 from PyQt5 import uic, QtGui
 from PyQt5.QtCore import pyqtSlot, QThreadPool, QProcess, QUrl, Qt
 from PyQt5.QtGui import QIcon, QKeySequence, QDesktopServices
-from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QWidget, QFileDialog, QAction, QMessageBox, QInputDialog
+from PyQt5.QtWidgets import QHBoxLayout, QMenu, QPushButton, QWidget, QFileDialog, QAction, QMessageBox, QInputDialog
 from torch import __version__ as __torch_version__
 from monai import __version__ as __monai_version__
 import sys
@@ -85,8 +85,9 @@ class QuMainWidget(QWidget):
         self.teLogger.setReadOnly(True)
         self.teLogger.setAcceptDrops(False)
 
-        # Set up the menu
-        # self._add_qu_menu()
+        # Set up the context menu
+        self._qu_context_menu = None
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
 
         # Set the connections
         self._set_connections()
@@ -99,6 +100,9 @@ class QuMainWidget(QWidget):
             print(f"Welcome to Qu {__version__} using {torch.cuda.get_device_name()}.", file=self._out_stream)
         else:
             print(f"Welcome to Qu {__version__} (no GPU found).", file=self._out_stream)
+        
+        # Inform the user about the context menu
+        print(f"\nRight-click on the widget for main menu.\n", file=self._out_stream)
 
     def __del__(self):
 
@@ -106,114 +110,118 @@ class QuMainWidget(QWidget):
         sys.stdout = self._original_out_stream
         sys.stderr = self._original_err_stream
 
-    def _add_qu_menu(self):
-        """Add the Qu menu to the main window."""
+    def _show_qu_context_menu(self, pos):
+        """Add the Qu context menu to the widget."""
 
-        # First add a separator from the standard napari menu
-        qu_menu = self._viewer.window.main_menu.addMenu(" | ")
-        qu_menu.setEnabled(False)
+        # Create menu if not yet ready
+        if self._qu_context_menu is None:
 
-        # Now add the Qu menu
-        qu_menu = self._viewer.window.main_menu.addMenu("Qu")
+            self._qu_context_menu = QMenu()
 
-        # About action
-        about_action = QAction(QIcon(":/icons/info.png"), "About Qu", self)
-        about_action.triggered.connect(self._on_qu_about_action)
-        qu_menu.addAction(about_action)
+            # About action
+            about_action = QAction(QIcon(":/icons/info.png"), "About Qu", self)
+            about_action.triggered.connect(self._on_qu_about_action)
+            self._qu_context_menu.addAction(about_action)
 
-        # Add separator
-        qu_menu.addSeparator()
+            # Add separator
+            self._qu_context_menu.addSeparator()
 
-        # Add processing submenu
-        processing_menu = qu_menu.addMenu("Processing")
+            # Add processing submenu
+            processing_menu = self._qu_context_menu.addMenu("Processing")
 
-        # Add images submenu
-        images_menu = processing_menu.addMenu("Images")
+            # Add images submenu
+            images_menu = processing_menu.addMenu("Images")
 
-        # Save mask
-        find_global_intensity_range_action = QAction("Find global intensity range", self)
-        find_global_intensity_range_action.triggered.connect(self._on_find_global_intensity_range_action)
-        images_menu.addAction(find_global_intensity_range_action)
+            # Save mask
+            find_global_intensity_range_action = QAction("Find global intensity range", self)
+            find_global_intensity_range_action.triggered.connect(self._on_find_global_intensity_range_action)
+            images_menu.addAction(find_global_intensity_range_action)
 
-        # Add masks submenu
-        masks_menu = processing_menu.addMenu("Masks")
+            # Add masks submenu
+            masks_menu = processing_menu.addMenu("Masks")
 
-        # Add placeholders for now
-        will_follow_action = QAction("Will follow", self)
-        masks_menu.addAction(will_follow_action)
+            # Add placeholders for now
+            will_follow_action = QAction("Will follow", self)
+            masks_menu.addAction(will_follow_action)
 
-        # Add curation submenu
-        curation_menu = qu_menu.addMenu("Curation")
+            # Add curation submenu
+            curation_menu = self._qu_context_menu.addMenu("Curation")
 
-        # Save mask
-        save_mask_action = QAction(QIcon(":/icons/save.png"), "Save mask", self)
-        save_mask_action.setShortcut(QKeySequence("Ctrl+Alt+S"))
-        save_mask_action.triggered.connect(self._on_qu_save_mask_action)
-        curation_menu.addAction(save_mask_action)
+            # Save mask
+            save_mask_action = QAction(QIcon(":/icons/save.png"), "Save mask", self)
+            save_mask_action.setShortcut(QKeySequence("Ctrl+Alt+S"))
+            save_mask_action.triggered.connect(self._on_qu_save_mask_action)
+            curation_menu.addAction(save_mask_action)
 
-        # Reload mask
-        reload_mask_action = QAction(QIcon(":/icons/revert.png"), "Reload mask", self)
-        reload_mask_action.setShortcut(QKeySequence("Ctrl+Alt+Z"))
-        reload_mask_action.triggered.connect(self._on_qu_reload_mask_action)
-        curation_menu.addAction(reload_mask_action)
+            # Reload mask
+            reload_mask_action = QAction(QIcon(":/icons/revert.png"), "Reload mask", self)
+            reload_mask_action.setShortcut(QKeySequence("Ctrl+Alt+Z"))
+            reload_mask_action.triggered.connect(self._on_qu_reload_mask_action)
+            curation_menu.addAction(reload_mask_action)
 
-        # Add separator
-        curation_menu.addSeparator()
+            # Add separator
+            curation_menu.addSeparator()
 
-        # Save mask
-        save_all_mask_action = QAction(QIcon(":/icons/save.png"), "Save all masks", self)
-        save_all_mask_action.triggered.connect(self._on_qu_save_all_masks_action)
-        curation_menu.addAction(save_all_mask_action)
+            # Save mask
+            save_all_mask_action = QAction(QIcon(":/icons/save.png"), "Save all masks", self)
+            save_all_mask_action.triggered.connect(self._on_qu_save_all_masks_action)
+            curation_menu.addAction(save_all_mask_action)
 
-        # Add separator
-        qu_menu.addSeparator()
+            # Add separator
+            self._qu_context_menu.addSeparator()
 
-        # Add Diagnostics submenu
-        diagnostics_menu = qu_menu.addMenu("Diagnostics")
+            # Add Diagnostics submenu
+            diagnostics_menu = self._qu_context_menu.addMenu("Diagnostics")
 
-        # Add Launch Tensorboard action
-        launch_tensorboard_action = QAction("Launch tensorboard", self)
-        launch_tensorboard_action.triggered.connect(self._on_launch_tensorboard_action)
-        diagnostics_menu.addAction(launch_tensorboard_action)
+            # Add Launch Tensorboard action
+            launch_tensorboard_action = QAction("Launch tensorboard", self)
+            launch_tensorboard_action.triggered.connect(self._on_launch_tensorboard_action)
+            diagnostics_menu.addAction(launch_tensorboard_action)
 
-        # Add segmentation diagnostics
-        seg_diagnostic = QAction("Segmentation diagnostics", self)
-        seg_diagnostic.triggered.connect(self._on_qu_segmentation_diagnostic)
-        diagnostics_menu.addAction(seg_diagnostic)
+            # Add segmentation diagnostics
+            seg_diagnostic = QAction("Segmentation diagnostics", self)
+            seg_diagnostic.triggered.connect(self._on_qu_segmentation_diagnostic)
+            diagnostics_menu.addAction(seg_diagnostic)
 
-        # Add separator
-        qu_menu.addSeparator()
+            # Add separator
+            self._qu_context_menu.addSeparator()
 
-        # Add demos menu
-        demos_menu = qu_menu.addMenu("Demos")
+            # Add demos menu
+            demos_menu = self._qu_context_menu.addMenu("Demos")
 
-        # Add segmentation demos menu
-        segmentation_demos_menu = demos_menu.addMenu("Segmentation dataset")
+            # Add segmentation demos menu
+            segmentation_demos_menu = demos_menu.addMenu("Segmentation dataset")
 
-        # Add demos
-        demo_3_classes_segmentation_action = QAction(QIcon(":/icons/download.png"), "3 classes", self)
-        demo_3_classes_segmentation_action.triggered.connect(self._on_qu_demo_3_classes_segmentation_action)
-        segmentation_demos_menu.addAction(demo_3_classes_segmentation_action)
+            # Add demos
+            demo_3_classes_segmentation_action = QAction(QIcon(":/icons/download.png"), "3 classes", self)
+            demo_3_classes_segmentation_action.triggered.connect(self._on_qu_demo_3_classes_segmentation_action)
+            segmentation_demos_menu.addAction(demo_3_classes_segmentation_action)
 
-        demo_2_classes_segmentation_action = QAction(QIcon(":/icons/download.png"), "2 classes", self)
-        demo_2_classes_segmentation_action.triggered.connect(self._on_qu_demo_2_classes_segmentation_action)
-        segmentation_demos_menu.addAction(demo_2_classes_segmentation_action)
+            demo_2_classes_segmentation_action = QAction(QIcon(":/icons/download.png"), "2 classes", self)
+            demo_2_classes_segmentation_action.triggered.connect(self._on_qu_demo_2_classes_segmentation_action)
+            segmentation_demos_menu.addAction(demo_2_classes_segmentation_action)
 
-        # demos_menu.addMenu(segmentation_demos_menu)
+            # demos_menu.addMenu(segmentation_demos_menu)
 
-        demo_restoration_action = QAction(QIcon(":/icons/download.png"), "Restoration dataset", self)
-        demo_restoration_action.triggered.connect(self._on_qu_demo_restoration_action)
-        demos_menu.addAction(demo_restoration_action)
+            demo_restoration_action = QAction(QIcon(":/icons/download.png"), "Restoration dataset", self)
+            demo_restoration_action.triggered.connect(self._on_qu_demo_restoration_action)
+            demos_menu.addAction(demo_restoration_action)
 
-        # Add help action
-        help_action = QAction(QIcon(":/icons/help.png"), "Help", self)
-        help_action.triggered.connect(self._on_qu_help_action)
-        qu_menu.addAction(help_action)
+            # Add help action
+            help_action = QAction(QIcon(":/icons/help.png"), "Help", self)
+            help_action.triggered.connect(self._on_qu_help_action)
+            self._qu_context_menu.addAction(help_action)
+
+        # Execute the action
+        self._qu_context_menu.exec_(self.mapToGlobal(pos))
 
     def _set_connections(self):
         """Connect signals and slots."""
 
         # Set up connections for UI elements
+
+        # Context menu
+        self.customContextMenuRequested.connect(self._show_qu_context_menu)
 
         # Data root and navigation
         self.pBSelectDataRootFolder.clicked.connect(self._on_select_data_root_folder)
