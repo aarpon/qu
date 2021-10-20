@@ -7,14 +7,11 @@ see: https://napari.org/docs/dev/plugins/hook_specifications.html
 Replace code below according to your needs.
 """
 from napari_plugin_engine import napari_hook_implementation
-from qu.ui.qu_logger_widget import QuLoggerWidget
 
 from qu.ui.qu_main_widget import QuMainWidget
 
 @napari_hook_implementation
 def napari_experimental_provide_dock_widget():
 
-    # Instantiate the QuLoggerWidget and the QuMainWidget
-    quLoggerWidget = QuLoggerWidget()
-    quMainWidget = QuMainWidget(quLoggerWidget)
-    return [quMainWidget, quLoggerWidget]
+    # Return the QuMainWidget class
+    return QuMainWidget

@@ -39,7 +39,7 @@ from qu.ui.threads import LearnerManager, PredictorManager, SegmentationDiagnost
 
 class QuMainWidget(QWidget):
 
-    def __init__(self, logger, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """Constructor."""
 
         # Call base constructor
@@ -81,8 +81,9 @@ class QuMainWidget(QWidget):
         sys.stderr = self._err_stream
         sys.stderr.stream_signal.connect(self._on_print_error_to_console)
 
-        # Create the logger
-        self._logger = logger
+        # Make sure that the logger is read only
+        self.teLogger.setReadOnly(True)
+        self.teLogger.setAcceptDrops(False)
 
         # Set up the menu
         # self._add_qu_menu()
@@ -90,14 +91,14 @@ class QuMainWidget(QWidget):
         # Set the connections
         self._set_connections()
 
-        # # Dock it
-        # viewer.window.add_dock_widget(self._logger, name='Qu Logger', area='bottom')
-
         # Tensorboard process
         self._tensorboard_process = None
 
         # Test redirection to output
-        print(f"Welcome to Qu {__version__}.", file=self._out_stream)
+        if torch.cuda.is_available():
+            print(f"Welcome to Qu {__version__} using {torch.cuda.get_device_name()}.", file=self._out_stream)
+        else:
+            print(f"Welcome to Qu {__version__} (no GPU found).", file=self._out_stream)
 
     def __del__(self):
 
@@ -500,25 +501,25 @@ class QuMainWidget(QWidget):
         """Redirect standard output to console."""
 
         # Append the text
-        self._logger.moveCursor(QtGui.QTextCursor.End)
-        self._logger.insertPlainText(text)
+        self.teLogger.moveCursor(QtGui.QTextCursor.End)
+        self.teLogger.insertPlainText(text)
 
     @pyqtSlot(str, name='_on_print_error_to_console')
     def _on_print_error_to_console(self, text: str) -> None:
         """Redirect standard error to console."""
 
         # Get current color
-        current_color = self._logger.textColor()
+        current_color = self.teLogger.textColor()
 
         # Set the color to red
-        self._logger.setTextColor(QtGui.QColor(255, 0, 0))
+        self.teLogger.setTextColor(QtGui.QColor(255, 0, 0))
 
         # Append the text
-        self._logger.moveCursor(QtGui.QTextCursor.End)
-        self._logger.insertPlainText(text)
+        self.teLogger.moveCursor(QtGui.QTextCursor.End)
+        self.teLogger.insertPlainText(text)
 
         # Restore the color
-        self._logger.setTextColor(current_color)
+        self.teLogger.setTextColor(current_color)
 
     @pyqtSlot(int, name="_on_selector_value_changed")
     def _on_selector_value_changed(self, value):
