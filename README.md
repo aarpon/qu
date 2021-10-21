@@ -28,7 +28,7 @@ pip install -e .
 
 ## Getting started
 
-Qu can be started from the plug-ins menu. The Qu main menu can be opened right-clicking on the Qu main widget.
+Qu can be started from the `Plugins` menu. The Qu main menu can be opened right-clicking on the Qu main widget.
 
 From the `Demos` menu, choose `Segmentation dataset: 2|3 classes` or `Restoration dataset`. 
 
