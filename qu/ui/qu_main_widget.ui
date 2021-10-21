@@ -271,6 +271,22 @@
     </spacer>
    </item>
    <item>
+    <widget class="QTextEdit" name="teLogger">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+       <horstretch>0</horstretch>
+       <verstretch>1</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="acceptDrops">
+      <bool>false</bool>
+     </property>
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QPushButton" name="pbFreeMemory">
      <property name="text">
       <string>Free GPU memory</string>
