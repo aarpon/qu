@@ -24,15 +24,13 @@ import sys
 
 from qu import __version__
 from qu.demo import get_demo_segmentation_dataset, get_demo_restoration_dataset
-from qu.models import UNet2DSegmenter, UNet2DRestorer, UNet2DRestorerSettings
-from qu.models import UNet2DSegmenterSettings
+from qu.models import UNet2DSegmenter, UNet2DRestorer, UNet2DRestorerSettings, UNet2DSegmenterSettings
 from qu.processing import SegmentationDiagnostics
 from qu.processing.data.images import find_global_intensity_range
 from qu.ui import _ui_folder_path
 from qu.console import EmittingErrorStream, EmittingOutputStream
 from qu.data import DataManager, ExperimentType
 from qu.ui.dialogs.qu_unet_restorer_settings_dialog import QuUNetMapperSettingsDialog
-from qu.ui.qu_logger_widget import QuLoggerWidget
 from qu.ui.dialogs.qu_unet_segmenter_settings_dialog import QuUNetSegmenterSettingsDialog
 from qu.ui.threads import LearnerManager, PredictorManager, SegmentationDiagnosticsManager
 
