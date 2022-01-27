@@ -10,21 +10,37 @@ Qu is released under the terms of the Apache License version 2.0 (see [LICENSE](
 
 ## Installation
 
+### Create an environment and install napari
+
 Install napari as [explained in the official documentation](https://napari.org/tutorials/fundamentals/installation.html). It is recommended to create a dedicated environment:
 
 ```
-conda create -y -n napari-env python=3.8
+conda create -y -n napari-env python=3.9
 conda activate napari-env
 pip install "napari[all]"
 ```
 
-Activate the `napari-env` environment with `conda activate napari-env`, clone Qu and install it as a napari plug in: 
+The next steps assume that we activated the `napari-env` environment.
+
+### Install PyTorch
+
+It is recommented to install PyTorch using the selection tool on https://pytorch.org/get-started/locally/#start-locally. This will ensure that PyTorch is installed with GPU acceleration and with the correct version of the CUDA libraries.
+
+**Example**: `conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch`
+
+Adapt the example [as needed](https://pytorch.org/get-started/locally/#start-locally).
+
+### Install Qu
+
+Qu cannot be installed from the [napari-hub](https://www.napari-hub.org) yet. Instead, clone Qu and install it manually as a napari plug in as follows: 
 
 ```bash
 git clone https://github.com/aarpon/qu
 cd qu
 pip install -e .
 ```
+
+> **Note**: Qu still uses the first generation `napari-plugin-engine`: a migration to `npe2` is planned.
 
 ## Getting started
 
